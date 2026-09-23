@@ -43,17 +43,17 @@ The detailed delivery plan and current status live in `docs/containerization-roa
 
 ## Known issues that affect the containerization work
 
-- The existing backend Docker build uses only `./backend` as its context and does not rebuild the frontend.
+- The retired legacy backend Docker build used only `./backend` as its context and did not rebuild the frontend. Its material findings are recorded in the roadmap and its pre-removal state remains in Git history.
 - `backend/api/controllers/rice-box.go` is a generated embedded frontend artifact and can become stale.
 - `frontend/package-lock.json` is missing, so frontend installation is not reproducible.
-- The backend Dockerfile exposes port 8000 while the application defaults to 8080.
-- Existing production processes run as root and use unpinned or obsolete base images.
+- The retired legacy backend Dockerfile exposed port 8000 while the application defaults to 8080.
+- The retired legacy images ran production processes as root and used unpinned or obsolete base images.
 - The backend hard-codes the public PDF service URL and disables TLS verification in related HTTP code.
 - The backend exits immediately on database connection failure and does not implement graceful shutdown.
 - Default admin credentials and API secrets are unsafe for production.
 - User PDFs, thumbnails, portraits, and SQLite data are written beneath `CONFIG_PATH`; these paths require an explicit persistence strategy.
-- The existing GitHub Actions Docker workflow uses old action versions and builds only the backend context.
-- Several application dependencies are legacy. Upgrade them in isolated, tested work items rather than silently during Dockerfile cleanup.
+- The retired legacy GitHub Actions Docker workflow used old action versions and built only the backend context. New container automation must be designed from the verified build graph rather than copied from it.
+- Several application dependencies are legacy. Upgrade them in isolated, tested work items rather than silently while authoring the replacement Dockerfiles.
 
 ## Working agreement
 

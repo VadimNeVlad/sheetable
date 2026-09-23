@@ -10,7 +10,7 @@ The plan deliberately separates discovery, application prerequisites, image cons
 
 | Field | Value |
 |---|---|
-| Overall status | Planned |
+| Overall status | In progress |
 | Current milestone | M0 — baseline and discovery |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
@@ -22,7 +22,7 @@ Status values used in this document: `Planned`, `In progress`, `Blocked`, `Done`
 
 ## Executive summary
 
-SheetAble has partial, outdated containerization. The Go backend and Python PDF service have Dockerfiles, but the full application cannot be built and operated reproducibly as one system. The frontend is not rebuilt by the current container pipeline, the backend depends on a hard-coded external PDF service, persistence is implicit, the default configuration is unsafe for production, and CI publishes an incompletely assembled image.
+SheetAble entered this program with partial, outdated containerization. After its M0 findings were recorded, the unsupported legacy Dockerfiles and Docker image workflow were retired so they could not be mistaken for a supported path. Their pre-removal state remains available in Git history, while the material findings are retained in this roadmap. The replacement Dockerfiles, Compose model, and image workflow will be designed from verified requirements rather than copied from the retired implementation. The application still cannot be built and operated reproducibly as one system: the frontend artifact flow is manual, the backend depends on a hard-coded external PDF service, persistence is implicit, and the default configuration is unsafe for production.
 
 The target outcome is:
 
@@ -104,11 +104,11 @@ Repository also contains a local Python/Flask + Poppler pdf2png service.
 
 ### Material findings
 
-1. The current GitHub Actions workflow builds with `context: ./backend`; it cannot construct the frontend bundle.
+1. The retired GitHub Actions Docker workflow built with `context: ./backend`; it could not construct the frontend bundle.
 2. `rice-box.go` contains generated frontend content, creating a stale-artifact risk.
 3. `frontend/package-lock.json` is absent; `npm install` is not deterministic.
-4. The backend Dockerfile copies the source redundantly, invalidates useful cache, runs as root, uses mutable base tags, and documents the wrong port.
-5. The PDF Dockerfile uses an obsolete Python/Debian base, unpinned packages, the Flask development server, and root execution.
+4. The retired backend Dockerfile copied the source redundantly, invalidated useful cache, ran as root, used mutable base tags, and documented the wrong port.
+5. The retired PDF Dockerfile used an obsolete Python/Debian base, unpinned packages, the Flask development server, and root execution.
 6. The backend hard-codes a public PDF endpoint and uses insecure TLS behavior.
 7. Database startup failure terminates the process immediately. Compose ordering alone cannot make the application resilient.
 8. The server does not perform graceful shutdown on `SIGTERM`.
@@ -156,13 +156,31 @@ Only the public entrypoint is published on the host.
 | `pdf2png` | PDF first-page rendering | Pinned Python dependencies, Poppler, production WSGI server |
 | `db` | PostgreSQL | Official image, no local Dockerfile by default |
 
+### Containerization implementation boundaries
+
+The retirement of the legacy Docker implementation creates an intentional gap: the repository has no supported application image definitions until M3 and M4. This is expected and must not be filled by restoring or lightly editing the retired files.
+
+| Milestone | Containerization work introduced | Primary repository artifacts |
+|---|---|---|
+| M0 | Record application, host, dependency, and historical container findings; do not restore or build the retired images as an acceptance requirement | Baseline evidence and roadmap updates only |
+| M1 | Make future build inputs deterministic and build contexts intentional | Frontend/Python lock strategy, verified Go modules, `.dockerignore` files, supported builder versions |
+| M2 | Establish application runtime contracts required by containers | Application configuration, service discovery, health/readiness, shutdown, retry, secrets, and data-root changes |
+| M3 | Create the Go/React production image from scratch | New root `Dockerfile` for the `app` image and executable image verification |
+| M4 | Create the PDF conversion production image from scratch | New `pdf2png/Dockerfile`, pinned Python restore, production WSGI runtime, and executable image verification |
+| M5 | Introduce the first supported multi-container runtime model | New `compose.yaml` for `app`, `pdf2png`, and official PostgreSQL |
+| M6 | Add containerized development behavior | `compose.dev.yaml`, watch/hot-reload configuration, and development cache/mount rules |
+| M7 | Add image validation and publication automation | New CI image workflows, Buildx configuration if required, scanning, SBOM, provenance, and registry publication |
+| M8 | Add the production deployment and host-operation layer | Production Compose overlay, reverse proxy/TLS, promotion, rollback, backup/restore, and host runbooks |
+
+Fresh-start rule: historical Dockerfiles, image workflows, and BuildKit configuration may be inspected in Git history only to understand previous failures. They are not templates, supported commands, or acceptance artifacts. Any useful behavior must be re-justified against the current target architecture and implemented in the milestone that owns it.
+
 ## Delivery strategy
 
 Changes should normally map to one milestone or a coherent subset of a milestone. Avoid a single pull request that combines dependency upgrades, application behavior changes, Docker builds, Compose, and CI publication.
 
 Each milestone is complete only when its acceptance criteria have been executed and evidence is available in the pull request or delivery notes.
 
-CI, security, documentation, and dependency maintenance are cross-cutting workstreams rather than activities deferred until their final milestone:
+CI, security, documentation, and dependency maintenance are cross-cutting workstreams rather than activities deferred until their final milestone. No supported application Dockerfile exists before M3/M4, and no supported Compose topology exists before M5:
 
 - M0 establishes the first repeatable validation commands and records baseline evidence.
 - Every subsequent milestone adds its new checks to CI as soon as they become executable.
@@ -172,7 +190,7 @@ CI, security, documentation, and dependency maintenance are cross-cutting workst
 
 ### Program success measures
 
-M0 records baselines and owners; target values are approved before the related implementation milestone is considered complete. At minimum, track:
+M0 records the non-image baseline, owners, measurement method, and unavailable-tool limitations. Image-specific measurements begin when the replacement images become executable in M3 and M4; Compose and host measurements follow in M5 and M8. Target values are approved before the related implementation milestone is considered complete. At minimum, track:
 
 - clean and cached image build duration;
 - final image sizes and layer composition;
@@ -188,7 +206,7 @@ M0 records baselines and owners; target values are approved before the related i
 
 ### M0 — Baseline and discovery
 
-**Status:** Planned
+**Status:** In progress
 
 **Goal:** Establish a known-good behavioral and build baseline before changing the runtime model.
 
@@ -198,7 +216,7 @@ M0 records baselines and owners; target values are approved before the related i
 - Run the existing Go tests and record failures.
 - Determine a compatible Node version and reproduce the current frontend build.
 - Run or characterize the current Python service.
-- Build the existing images without silently fixing them and record results, sizes, users, ports, and vulnerabilities.
+- Record the material findings from the retired Dockerfiles and image workflow using Git history. Do not restore or build them as an M0 acceptance requirement; the first supported image measurements belong to M3 and M4.
 - Document current environment variables and persistent paths.
 - Inventory external runtime dependencies, DNS destinations, credentials, timeouts, and expected degraded behavior, including SMTP, Open Opus, GitHub Releases, remote image hosts, and remote fonts.
 - Record the current Docker-host assumptions: Engine installation, daemon access, firewall exposure, logging driver, data root, available disk, and startup behavior.
@@ -213,13 +231,13 @@ M0 records baselines and owners; target values are approved before the related i
 - The current frontend-to-backend artifact flow is understood.
 - Persistent and temporary data paths are enumerated.
 - External-service and host-level dependencies have named owners or an explicit follow-up item.
-- Baseline build, startup, resource, image-size, and security measurements are recorded where tooling permits.
+- Language-level build/test results, host facts, historical container findings, and unavailable-tool limitations are recorded. Image build, startup, resource, size, and security baselines are explicitly deferred to the first executable replacement images in M3 and M4.
 
 ### M1 — Reproducible dependencies and repository hygiene
 
 **Status:** Planned
 
-**Goal:** Make dependency restoration deterministic and build contexts intentional.
+**Goal:** Make dependency restoration deterministic and prepare intentional build contexts for the new image definitions without introducing a production Dockerfile yet.
 
 **Deliverables:**
 
@@ -243,11 +261,11 @@ M0 records baselines and owners; target values are approved before the related i
 
 **Status:** Planned
 
-**Goal:** Remove application behaviors that prevent reliable container operation.
+**Goal:** Remove application behaviors that prevent reliable container operation before any production image definition is introduced.
 
 **Deliverables:**
 
-- Add a configurable `PDF2PNG_URL` and use Compose DNS rather than a public hard-coded endpoint.
+- Add a configurable `PDF2PNG_URL` that accepts service-DNS URLs; actual Compose DNS wiring is introduced and exercised in M5 rather than hard-coded in application code.
 - Remove insecure TLS bypass from the PDF request path.
 - Add bounded HTTP timeouts and actionable error handling.
 - Define retry, backoff, and degraded-mode behavior for required and optional outbound dependencies; retries must be bounded and must not amplify an outage.
@@ -262,9 +280,9 @@ M0 records baselines and owners; target values are approved before the related i
 
 **Acceptance criteria:**
 
-- The application starts using service DNS names on a container network.
-- Temporary database unavailability does not create an uncontrolled restart loop.
-- `docker stop` results in a graceful exit within the configured timeout.
+- Configuration tests demonstrate that the application accepts service-DNS URLs without requiring a public hard-coded endpoint.
+- Automated process/integration tests demonstrate that temporary database unavailability uses bounded retry rather than an uncontrolled restart loop.
+- Process-level signal tests demonstrate graceful `SIGTERM`/`SIGINT` handling; `docker stop` verification follows when the `app` image exists in M3.
 - Health endpoints have documented semantics and automated tests.
 - Production startup cannot silently use repository default credentials.
 - Optional external-service failures do not make unrelated read-only application paths unavailable, and required dependency failures are observable.
@@ -273,11 +291,11 @@ M0 records baselines and owners; target values are approved before the related i
 
 **Status:** Planned
 
-**Goal:** Produce one minimal, repeatable application image containing the current React bundle and Go server.
+**Goal:** Create from scratch one minimal, repeatable application image containing the current React bundle and Go server.
 
 **Deliverables:**
 
-- Add a root multi-stage Dockerfile with named dependency, build, test, and runtime targets.
+- Create a new root multi-stage Dockerfile with named dependency, build, test, and runtime targets; do not copy or restore the retired backend Dockerfile.
 - Build the frontend with `npm ci`.
 - Generate or replace `go.rice` assets during the image build.
 - Restore Go modules before copying frequently changing source files.
@@ -296,16 +314,19 @@ M0 records baselines and owners; target values are approved before the related i
 - The runtime image contains no Node runtime, Go toolchain, source tree, or package-manager cache.
 - The process runs as non-root and can write only to declared paths.
 - The image serves both React and the API and passes the smoke test.
+- `docker stop` results in graceful application and database shutdown within the configured timeout.
 - Supported target-platform images are exercised on their target architecture or an approved equivalent before release.
+- The new image definition has no runtime or build dependency on files from the retired Docker implementation.
 
 ### M4 — Production PDF service image
 
 **Status:** Planned
 
-**Goal:** Make PDF conversion an internal, hardened, observable service.
+**Goal:** Create from scratch an internal, hardened, observable PDF conversion service image.
 
 **Deliverables:**
 
+- Create a new `pdf2png/Dockerfile`; do not copy or restore the retired PDF Dockerfile.
 - Upgrade to a supported Python base image.
 - Install Poppler with minimal OS packages and remove package-manager metadata.
 - Restore pinned Python dependencies separately from application source.
@@ -318,7 +339,7 @@ M0 records baselines and owners; target values are approved before the related i
 
 **Acceptance criteria:**
 
-- The backend reaches the service only through internal service discovery.
+- The service image exposes only its documented application port and does not require public internet discovery; Compose network isolation and service-DNS integration are verified in M5.
 - Malformed input returns a controlled client error rather than terminating a worker.
 - Temporary files do not accumulate across requests.
 - The container stops gracefully and passes its healthcheck as non-root.
@@ -327,7 +348,7 @@ M0 records baselines and owners; target values are approved before the related i
 
 **Status:** Planned
 
-**Goal:** Run the complete production-like stack with one documented Compose command.
+**Goal:** Introduce the first supported Compose model and run the complete production-like stack with one documented command.
 
 **Deliverables:**
 
@@ -348,6 +369,7 @@ M0 records baselines and owners; target values are approved before the related i
 - `docker compose up --build` reaches a healthy state on a clean machine.
 - Recreating `app` and `db` containers preserves their respective data.
 - PostgreSQL and `pdf2png` are not reachable through published host ports.
+- The application reaches PostgreSQL and `pdf2png` through Compose service names on internal networks; no public PDF endpoint is used.
 - Removing an application container does not remove user uploads.
 - An intentional volume removal is clearly documented as destructive.
 - A configuration validation check catches unresolved variables, invalid Compose structure, and unsafe production defaults before containers start.
@@ -521,6 +543,8 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-23 | Treat CI, security, documentation, and dependency maintenance as cross-cutting work | Delaying all controls until M7 would leave earlier milestones unprotected and increase integration risk |
 | 2026-09-23 | Promote immutable image digests between environments | Prevents production from running an artifact different from the one tested and approved |
 | 2026-09-23 | Commit dependency lock files and normalize repository text to LF | Lock files are required for reproducibility, while LF prevents Windows/WSL line endings from breaking Linux entrypoints and scripts |
+| 2026-09-23 | Retire the unsupported legacy Docker implementation before replacement | Its material findings are preserved in this roadmap and its exact content remains in Git history; removing it prevents accidental reuse while the new build and delivery path is designed from verified requirements |
+| 2026-09-23 | Create replacement container artifacts from scratch | M1 and M2 establish deterministic inputs and runtime contracts; M3 creates the new app Dockerfile, M4 creates the new PDF Dockerfile, and M5 introduces the first supported Compose model. Retired files are evidence, not templates |
 
 ## Progress log
 
@@ -530,3 +554,6 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-23 | Planning | Reworked the repository README to document the current architecture, modernization status, safety notice, and roadmap entry point without publishing unverified setup commands |
 | 2026-09-23 | Planning review | Expanded cross-cutting CI, external-dependency inventory, delivery promotion, host hardening, log/disk controls, RPO/RTO, backup consistency, and license-compliance coverage after a formal roadmap review |
 | 2026-09-23 | Pre-M0 guardrails | Added repository-wide secret/local-artifact ignore rules and explicit cross-platform line-ending policy without performing a noisy bulk renormalization |
+| 2026-09-23 | M0 | Started baseline capture; recorded current host/tool limits, frontend restore and build evidence, configuration and data paths, external dependencies, licenses, and the initial smoke-test plan. Go tests remain open because Go is unavailable in the current session; replacement image measurements begin in M3/M4 |
+| 2026-09-23 | M0 cleanup | Removed the unsupported legacy backend/PDF Dockerfiles, Docker image workflow, and its BuildKit configuration after preserving their material findings in this roadmap and their exact content in Git history |
+| 2026-09-23 | Roadmap clarification | Made the fresh-start boundary explicit: M0–M2 contain discovery and prerequisites, M3/M4 create new Dockerfiles from scratch, and M5 introduces the first supported Compose model |

@@ -17,7 +17,7 @@
 </p>
 
 > [!IMPORTANT]
-> The container build, development environment, and deployment workflow in this repository are currently being modernized. The existing Dockerfiles and historical external installation instructions must not yet be treated as a verified production deployment path. Follow the [containerization roadmap](docs/containerization-roadmap.md) for current scope and progress.
+> The container build, development environment, and deployment workflow in this repository are currently being modernized. The unsupported legacy Dockerfiles and image workflow were removed after their M0 findings were recorded. No production-ready container deployment path exists yet. Follow the [containerization roadmap](docs/containerization-roadmap.md) for current scope and progress.
 
 ## About the project
 
@@ -62,9 +62,9 @@ Python/Flask + Poppler
 
 ```text
 .
-|-- backend/       Go server, API, models, and the existing backend Dockerfile
+|-- backend/       Go server, API, and models
 |-- frontend/      React application
-|-- pdf2png/       Python PDF conversion service and its existing Dockerfile
+|-- pdf2png/       Python PDF conversion service
 |-- docs/          Images and project/operations documentation
 |-- .github/       Existing CI workflows and repository configuration
 |-- AGENTS.md      Working context and engineering rules for Codex sessions
@@ -93,7 +93,7 @@ See [SheetAble: containerization and operational readiness roadmap](docs/contain
 
 ### Current status
 
-A new supported quick-start workflow is not documented yet because the current application and existing images are still being baselined. Commands will be added here only after they have been executed successfully from a clean checkout.
+A new supported quick-start workflow is not documented yet because the application dependencies and container runtime contracts are still being prepared. The retired images are not a supported baseline: replacement Dockerfiles will be created in M3/M4 and the first supported Compose workflow in M5. Commands will be added here only after they have been executed successfully from a clean checkout.
 
 The next delivery milestone is `M0 — Baseline and discovery`, which verifies:
 
@@ -101,7 +101,7 @@ The next delivery milestone is `M0 — Baseline and discovery`, which verifies:
 - the existing Go tests and build;
 - the current frontend dependency installation and build;
 - the Python service behavior;
-- the existing container images;
+- the retired legacy container definitions as historical baseline evidence;
 - health, login, upload, thumbnail, and persistence smoke-test paths.
 
 Historical upstream instructions remain available for reference:

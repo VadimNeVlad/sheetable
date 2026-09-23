@@ -11,6 +11,7 @@ pnpm-debug.log*
 build/
 dist/
 coverage/
+docs/
 coverage.out
 *.out
 *.test
