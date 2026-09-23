@@ -1,0 +1,26 @@
+# Keep repository and container text files consistent across Windows, WSL, and Linux.
+* text=auto eol=lf
+
+# Native Windows command scripts require CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never apply text conversion to binary assets or compiled artifacts.
+*.7z binary
+*.dll binary
+*.eot binary
+*.exe binary
+*.gif binary
+*.gz binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.pdf binary
+*.png binary
+*.so binary
+*.tar binary
+*.ttf binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.zip binary
