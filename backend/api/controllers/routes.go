@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"path"
 	"time"
@@ -18,6 +19,22 @@ func (server *Server) SetupRouter() {
 	// Health checks
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
+	r.GET("/health/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
+	r.GET("/health/ready", func(c *gin.Context) {
+		if server.DB == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY"})
+			return
+		}
+		readinessContext, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if err := server.DB.DB().PingContext(readinessContext); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "NOT_READY"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "READY"})
 	})
 
 	api := r.Group("/api")

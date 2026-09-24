@@ -1,0 +1,25 @@
+# Local Python environments, caches, and test output
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+coverage
+.coverage
+
+# Local configuration, secrets, and request artifacts
+.env
+.env.*
+.envrc
+secrets
+.secrets
+thumbnails
+*.pdf
+
+# Repository and editor metadata are not runtime inputs
+.git
+.gitignore
+.DS_Store
+Thumbs.db

@@ -11,7 +11,7 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M0 — baseline and discovery, with frontend dependency reproducibility started from M1 |
+| Current milestone | M3 ready — Docker implementation is the next user-led block |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
 | Runtime platforms | `linux/amd64`, `linux/arm64` |
@@ -206,9 +206,11 @@ M0 records the non-image baseline, owners, measurement method, and unavailable-t
 
 ### M0 — Baseline and discovery
 
-**Status:** In progress
+**Status:** Done
 
 **Goal:** Establish a known-good behavioral and build baseline before changing the runtime model.
+
+**Evidence:** [`docs/m0-baseline.md`](m0-baseline.md)
 
 **Deliverables:**
 
@@ -235,7 +237,7 @@ M0 records the non-image baseline, owners, measurement method, and unavailable-t
 
 ### M1 — Reproducible dependencies and repository hygiene
 
-**Status:** In progress
+**Status:** Done
 
 **Goal:** Make dependency restoration deterministic and prepare intentional build contexts for the new image definitions without introducing a production Dockerfile yet.
 
@@ -259,7 +261,18 @@ M0 records the non-image baseline, owners, measurement method, and unavailable-t
 
 ### M2 — Application container-readiness prerequisites
 
-**Status:** Planned
+**Status:** Done
+
+**Progress:** `PDF2PNG_URL` now accepts local or service-DNS endpoints. The PDF
+client uses normal TLS verification, a bounded timeout, checked HTTP/content-type
+responses, error propagation, and atomic thumbnail publication. Configuration,
+success, failure, invalid-URL, and TLS-verification paths have automated tests.
+Database startup now has bounded exponential retry; liveness and database-aware
+readiness are separate; `SIGTERM`/`SIGINT` trigger a ten-second graceful shutdown
+and database close. Production configuration rejects unsafe defaults, sensitive
+values support `_FILE`, and the application data root is created explicitly.
+Runtime, migration, upgrade, rollback, and single-replica contracts are recorded
+in [`docs/runtime-contracts.md`](runtime-contracts.md).
 
 **Goal:** Remove application behaviors that prevent reliable container operation before any production image definition is introduced.
 
@@ -547,6 +560,8 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-23 | Create replacement container artifacts from scratch | M1 and M2 establish deterministic inputs and runtime contracts; M3 creates the new app Dockerfile, M4 creates the new PDF Dockerfile, and M5 introduces the first supported Compose model. Retired files are evidence, not templates |
 | 2026-09-23 | Standardize frontend builds on Node 24.21.0 and npm 11.19.0 | The production image will need a supported, reproducible builder. Upgrading only `react-scripts` from 2.1.8 to 5.0.1 removes the obsolete `http_parser` dependency path while preserving React 17 and application behavior; broader framework modernization remains a separate work item |
 | 2026-09-24 | Standardize `pdf2png` builds on Python 3.14.7 with hash-locked dependencies | Python 3.10 reaches end of life in October 2026. Direct dependencies live in `requirements.in`; pip-tools 7.6.1 generates `requirements.txt` with exact transitive versions and hashes, and installation uses `--require-hashes` |
+| 2026-09-24 | Keep dependency modernization separate from container definition work | M1 records owner, severity, runtime-support status, and release gates. Weekly update PRs cover npm, Go, Python, GitHub Actions, and future base images, but major upgrades and bot-generated lock changes require isolated review and tests |
+| 2026-09-24 | Exclude local generated frontend artifacts from the root image context | The M3 application image must build React and regenerate `rice-box.go` from the same source revision; excluding both local `frontend/build` and the tracked generated embed prevents a stale workstation artifact from entering an image |
 
 ## Progress log
 
@@ -563,3 +578,13 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-24 | M0 backend baseline | Restored and verified Go modules and exercised tests, build, startup, health, version, login, SQLite persistence, and restart on Go 1.27.1 with CGO. Existing findings are a malformed JSON struct tag reported by `go vet`, a compiler warning in legacy `go-sqlite3`, sparse test coverage, and exit code 143 without graceful `SIGTERM` handling |
 | 2026-09-24 | M0 pdf2png baseline | Characterized the service on Python 3.10.12 with Poppler, Flask 3.1.3, and pdf2image 1.17.0. Updated `send_file` compatibility and path/MIME handling; a real multipart PDF request returned HTTP 200 and a 380×535 PNG, and request files were removed after the response. A production WSGI server, safe request-scoped files, input validation, and concurrency remain open work |
 | 2026-09-24 | M1 pdf2png dependencies | Selected Python 3.14.7, verified the service and Poppler conversion on that runtime, and added pip-tools input plus a complete hash-locked dependency graph. A clean `pip install --require-hashes`, `pip check`, syntax check, and HTTP PDF-to-PNG smoke test passed using the lock file |
+| 2026-09-24 | M1 backend and build inputs | Standardized the backend builder on Go 1.27.1, removed four stale checksum entries with `go mod tidy`, and re-ran module verification and tests successfully. The existing `go vet` struct-tag defect remains an explicitly owned application backlog item rather than being hidden in dependency work |
+| 2026-09-24 | M1 build contexts | Added root and `pdf2png` `.dockerignore` contracts and exercised them through BuildKit context exports. Required source and lock files were present; VCS data, local dependencies, runtime data, secrets, build output, the separate PDF service, and stale generated frontend/embed artifacts were absent |
+| 2026-09-24 | M1 complete | Added the dependency modernization/release policy and weekly Dependabot coverage for npm, Go modules, Python, GitHub Actions, and future Docker bases. Reproducible restores, supported builder versions, clean module metadata, intentional build contexts, and stale-embed prevention now satisfy the M1 acceptance criteria |
+| 2026-09-24 | M0 complete | Consolidated the verified host/tool versions, language baselines, environment variables, persistent and temporary paths, external dependencies, credentials, smoke-test contract, host assumptions, license boundary, owners, and milestone follow-ups in `docs/m0-baseline.md`. Image-specific evidence remains intentionally assigned to M3-M5 |
+| 2026-09-24 | M2 started | Began the application prerequisite phase. The first bounded change replaces the hard-coded public PDF conversion endpoint and unsafe HTTP client behavior with a tested runtime configuration contract |
+| 2026-09-24 | M2 PDF client contract | Added `PDF2PNG_URL` with a local default and verified a Compose-style `http://pdf2png:5000/createthumbnail` value. Replaced the test-server/insecure-TLS production client with a 30-second standard client, validated status and PNG media type, returned actionable errors instead of panicking, and atomically published thumbnails. Added automated success/failure/URL/TLS tests; all Go tests, vet, module verification, and tidy checks pass |
+| 2026-09-24 | M2 lifecycle and health | Added bounded exponential database startup retry, process-only liveness, two-second database-aware readiness, and graceful signal handling with a ten-second drain plus database close. Unit tests cover retry limits and health semantics; a compiled process returned live/ready 200, persisted SQLite data, and exited 0 after `SIGTERM` |
+| 2026-09-24 | M2 production configuration and data | Added `APP_ENV` validation, rejected unsafe production secrets/default administrator credentials, validated URLs/database/SMTP/ports before startup, added file-backed secret inputs, and recursively prepared the explicit application data directories. Tests cover production rejection/acceptance, service URL validation, file-secret precedence, and data paths |
+| 2026-09-24 | M2 external dependencies and database lifecycle | Bounded Open Opus and SMTP calls, restored normal SMTP TLS verification, converted outbound failures from panic paths into errors/fallback, made schema migration errors actionable, and made initial administrator creation idempotent when the users table is empty. Recorded the initial one-replica migration and backward-compatible rollback contract in `docs/runtime-contracts.md` |
+| 2026-09-24 | M2 complete | Verified the full Go suite, `go vet`, module integrity, clean tidy state, and race detector. Process-level production checks rejected repository default credentials, loaded file-backed secrets, created the complete data root, returned live/ready 200, persisted SQLite data, and exited 0 after `SIGTERM`. M3 is the first Docker-authoring milestone and is intentionally handed to the learner |

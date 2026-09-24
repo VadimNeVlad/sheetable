@@ -2,25 +2,31 @@ package seed
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/SheetAble/SheetAble/backend/api/models"
 	"github.com/jinzhu/gorm"
 )
 
-func Load(db *gorm.DB, email string, password string) {
+func MigrateAndSeed(db *gorm.DB, email string, password string) error {
 	err := db.AutoMigrate(&models.User{}, &models.Sheet{}, &models.Composer{}).Error
 	if err != nil {
-		log.Fatalf("cannot migrate table: %v", err)
+		return fmt.Errorf("migrate database schema: %w", err)
+	}
+
+	var existingUsers int
+	if err = db.Model(&models.User{}).Count(&existingUsers).Error; err != nil {
+		return fmt.Errorf("check initial administrator: %w", err)
+	}
+	if existingUsers > 0 {
+		return nil
 	}
 
 	err = db.Model(&models.User{}).Create(&models.User{
 		Email:    email,
 		Password: password,
 	}).Error
-
 	if err != nil {
-		fmt.Println("User already exists")
-		return
+		return fmt.Errorf("create initial administrator: %w", err)
 	}
+	return nil
 }

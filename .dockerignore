@@ -1,0 +1,42 @@
+# Source-control and repository-only metadata
+.git
+.github
+.husky
+.gitignore
+.gitattributes
+AGENTS.md
+docs
+*.md
+
+# The root context builds the Go/React app; pdf2png has its own context.
+pdf2png
+
+# Local dependencies, caches, tests, and build output
+**/node_modules
+frontend/build
+frontend/coverage
+**/.cache
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/__pycache__
+**/*.py[cod]
+**/*.test
+**/*.out
+backend/build
+backend/*.exe
+
+# Local configuration, secrets, and runtime data
+**/.env
+**/.env.*
+**/.envrc
+**/secrets
+**/.secrets
+backend/config
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite3
+
+# The frontend embed must be regenerated from this build's frontend output.
+backend/api/controllers/rice-box.go
