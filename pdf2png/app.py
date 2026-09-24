@@ -36,7 +36,11 @@ def index():
         os.remove(f"./{name}.png") 
         return response
 
-    return send_file(f'./{name}.png', attachment_filename='python.jpg')
+    return send_file(
+        os.path.abspath(f'./{name}.png'),
+        download_name='thumbnail.png',
+        mimetype='image/png',
+    )
 
   
 

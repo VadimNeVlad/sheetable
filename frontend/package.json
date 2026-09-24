@@ -31,7 +31,7 @@
     "react-pdf": "^5.3.2",
     "react-redux": "^7.2.4",
     "react-router-dom": "^5.2.0",
-    "react-scripts": "2.1.8",
+    "react-scripts": "5.0.1",
     "react-topbar-progress-indicator": "^4.1.0",
     "redux-persist": "^6.0.0",
     "redux-thunk": "^2.3.0",
@@ -46,6 +46,11 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
+  "engines": {
+    "node": "24.x",
+    "npm": "11.x"
+  },
+  "packageManager": "npm@11.19.0",
   "eslintConfig": {
     "extends": [
       "react-app",

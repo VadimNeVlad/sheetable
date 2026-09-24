@@ -11,12 +11,12 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M0 — baseline and discovery |
+| Current milestone | M0 — baseline and discovery, with frontend dependency reproducibility started from M1 |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
 | Runtime platforms | `linux/amd64`, `linux/arm64` |
 | Primary database | PostgreSQL |
-| Last updated | 2026-09-23 |
+| Last updated | 2026-09-24 |
 
 Status values used in this document: `Planned`, `In progress`, `Blocked`, `Done`.
 
@@ -106,7 +106,7 @@ Repository also contains a local Python/Flask + Poppler pdf2png service.
 
 1. The retired GitHub Actions Docker workflow built with `context: ./backend`; it could not construct the frontend bundle.
 2. `rice-box.go` contains generated frontend content, creating a stale-artifact risk.
-3. `frontend/package-lock.json` is absent; `npm install` is not deterministic.
+3. The repository initially lacked `frontend/package-lock.json`; the frontend dependency graph is now locked and validated with Node 24.21.0 and npm 11.19.0.
 4. The retired backend Dockerfile copied the source redundantly, invalidated useful cache, ran as root, used mutable base tags, and documented the wrong port.
 5. The retired PDF Dockerfile used an obsolete Python/Debian base, unpinned packages, the Flask development server, and root execution.
 6. The backend hard-codes a public PDF endpoint and uses insecure TLS behavior.
@@ -235,7 +235,7 @@ M0 records the non-image baseline, owners, measurement method, and unavailable-t
 
 ### M1 — Reproducible dependencies and repository hygiene
 
-**Status:** Planned
+**Status:** In progress
 
 **Goal:** Make dependency restoration deterministic and prepare intentional build contexts for the new image definitions without introducing a production Dockerfile yet.
 
@@ -545,6 +545,8 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-23 | Commit dependency lock files and normalize repository text to LF | Lock files are required for reproducibility, while LF prevents Windows/WSL line endings from breaking Linux entrypoints and scripts |
 | 2026-09-23 | Retire the unsupported legacy Docker implementation before replacement | Its material findings are preserved in this roadmap and its exact content remains in Git history; removing it prevents accidental reuse while the new build and delivery path is designed from verified requirements |
 | 2026-09-23 | Create replacement container artifacts from scratch | M1 and M2 establish deterministic inputs and runtime contracts; M3 creates the new app Dockerfile, M4 creates the new PDF Dockerfile, and M5 introduces the first supported Compose model. Retired files are evidence, not templates |
+| 2026-09-23 | Standardize frontend builds on Node 24.21.0 and npm 11.19.0 | The production image will need a supported, reproducible builder. Upgrading only `react-scripts` from 2.1.8 to 5.0.1 removes the obsolete `http_parser` dependency path while preserving React 17 and application behavior; broader framework modernization remains a separate work item |
+| 2026-09-24 | Standardize `pdf2png` builds on Python 3.14.7 with hash-locked dependencies | Python 3.10 reaches end of life in October 2026. Direct dependencies live in `requirements.in`; pip-tools 7.6.1 generates `requirements.txt` with exact transitive versions and hashes, and installation uses `--require-hashes` |
 
 ## Progress log
 
@@ -554,6 +556,10 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-23 | Planning | Reworked the repository README to document the current architecture, modernization status, safety notice, and roadmap entry point without publishing unverified setup commands |
 | 2026-09-23 | Planning review | Expanded cross-cutting CI, external-dependency inventory, delivery promotion, host hardening, log/disk controls, RPO/RTO, backup consistency, and license-compliance coverage after a formal roadmap review |
 | 2026-09-23 | Pre-M0 guardrails | Added repository-wide secret/local-artifact ignore rules and explicit cross-platform line-ending policy without performing a noisy bulk renormalization |
-| 2026-09-23 | M0 | Started baseline capture; recorded current host/tool limits, frontend restore and build evidence, configuration and data paths, external dependencies, licenses, and the initial smoke-test plan. Go tests remain open because Go is unavailable in the current session; replacement image measurements begin in M3/M4 |
+| 2026-09-23 | M0 | Started baseline capture; recorded the initial host/tool limits, frontend restore and build evidence, configuration and data paths, external dependencies, licenses, and the initial smoke-test plan. Replacement image measurements begin in M3/M4 |
 | 2026-09-23 | M0 cleanup | Removed the unsupported legacy backend/PDF Dockerfiles, Docker image workflow, and its BuildKit configuration after preserving their material findings in this roadmap and their exact content in Git history |
 | 2026-09-23 | Roadmap clarification | Made the fresh-start boundary explicit: M0–M2 contain discovery and prerequisites, M3/M4 create new Dockerfiles from scratch, and M5 introduces the first supported Compose model |
+| 2026-09-23 | M0 / M1 frontend | Replaced the Node-24-incompatible Create React App 2 build chain with `react-scripts` 5.0.1 while keeping React 17 and application source unchanged. A clean Node 24.21.0/npm 11.19.0 `npm ci`, test-runner invocation, production build, dev-server compile, and HTTP 200 smoke test passed. The build retains existing ESLint warnings; `npm audit` reports 33 known findings (19 high, 5 moderate, 9 low, 0 critical), which remain in the dependency-modernization backlog |
+| 2026-09-24 | M0 backend baseline | Restored and verified Go modules and exercised tests, build, startup, health, version, login, SQLite persistence, and restart on Go 1.27.1 with CGO. Existing findings are a malformed JSON struct tag reported by `go vet`, a compiler warning in legacy `go-sqlite3`, sparse test coverage, and exit code 143 without graceful `SIGTERM` handling |
+| 2026-09-24 | M0 pdf2png baseline | Characterized the service on Python 3.10.12 with Poppler, Flask 3.1.3, and pdf2image 1.17.0. Updated `send_file` compatibility and path/MIME handling; a real multipart PDF request returned HTTP 200 and a 380×535 PNG, and request files were removed after the response. A production WSGI server, safe request-scoped files, input validation, and concurrency remain open work |
+| 2026-09-24 | M1 pdf2png dependencies | Selected Python 3.14.7, verified the service and Poppler conversion on that runtime, and added pip-tools input plus a complete hash-locked dependency graph. A clean `pip install --require-hashes`, `pip check`, syntax check, and HTTP PDF-to-PNG smoke test passed using the lock file |
