@@ -11,12 +11,12 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M3 ready — Docker implementation is the next user-led block |
+| Current milestone | M4 ready — PDF service hardening and image construction are next |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
-| Runtime platforms | `linux/amd64`, `linux/arm64` |
+| Runtime platforms | `linux/amd64` initially; `linux/arm64` deferred until a deployment requirement or M7 release validation |
 | Primary database | PostgreSQL |
-| Last updated | 2026-09-24 |
+| Last updated | 2026-09-26 |
 
 Status values used in this document: `Planned`, `In progress`, `Blocked`, `Done`.
 
@@ -302,7 +302,16 @@ in [`docs/runtime-contracts.md`](runtime-contracts.md).
 
 ### M3 — Production application image
 
-**Status:** Planned
+**Status:** Done
+
+**Evidence:** The new root multi-stage Dockerfile restores locked Node and Go
+dependencies with named BuildKit caches, builds React, regenerates `go.rice`
+assets, exposes an explicit test target, compiles the CGO backend, and copies
+only the resulting binary into a pinned Debian Bookworm slim runtime. The
+runtime is configured for UID/GID `10001`, a root-owned read-only executable,
+an explicit writable data root, OCI metadata, port 8080, and direct `SIGTERM`
+delivery. On `linux/amd64`, the image served liveness, readiness, and the React
+entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 
 **Goal:** Create from scratch one minimal, repeatable application image containing the current React bundle and Go server.
 
@@ -328,7 +337,7 @@ in [`docs/runtime-contracts.md`](runtime-contracts.md).
 - The process runs as non-root and can write only to declared paths.
 - The image serves both React and the API and passes the smoke test.
 - `docker stop` results in graceful application and database shutdown within the configured timeout.
-- Supported target-platform images are exercised on their target architecture or an approved equivalent before release.
+- The initially supported `linux/amd64` image is exercised on its target architecture. Any additional platform must be built and exercised on that architecture or an approved equivalent before it is claimed as supported or released.
 - The new image definition has no runtime or build dependency on files from the retired Docker implementation.
 
 ### M4 — Production PDF service image
@@ -562,6 +571,7 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-24 | Standardize `pdf2png` builds on Python 3.14.7 with hash-locked dependencies | Python 3.10 reaches end of life in October 2026. Direct dependencies live in `requirements.in`; pip-tools 7.6.1 generates `requirements.txt` with exact transitive versions and hashes, and installation uses `--require-hashes` |
 | 2026-09-24 | Keep dependency modernization separate from container definition work | M1 records owner, severity, runtime-support status, and release gates. Weekly update PRs cover npm, Go, Python, GitHub Actions, and future base images, but major upgrades and bot-generated lock changes require isolated review and tests |
 | 2026-09-24 | Exclude local generated frontend artifacts from the root image context | The M3 application image must build React and regenerate `rice-box.go` from the same source revision; excluding both local `frontend/build` and the tracked generated embed prevents a stale workstation artifact from entering an image |
+| 2026-09-26 | Support `linux/amd64` as the initial verified runtime platform and defer `linux/arm64` | The current development and initial deployment baseline is x86-64, while no ARM consumer or production host requirement exists. Multi-platform publication and ARM CGO validation will be added in M7 only when justified by a deployment requirement |
 
 ## Progress log
 
@@ -588,3 +598,4 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-24 | M2 production configuration and data | Added `APP_ENV` validation, rejected unsafe production secrets/default administrator credentials, validated URLs/database/SMTP/ports before startup, added file-backed secret inputs, and recursively prepared the explicit application data directories. Tests cover production rejection/acceptance, service URL validation, file-secret precedence, and data paths |
 | 2026-09-24 | M2 external dependencies and database lifecycle | Bounded Open Opus and SMTP calls, restored normal SMTP TLS verification, converted outbound failures from panic paths into errors/fallback, made schema migration errors actionable, and made initial administrator creation idempotent when the users table is empty. Recorded the initial one-replica migration and backward-compatible rollback contract in `docs/runtime-contracts.md` |
 | 2026-09-24 | M2 complete | Verified the full Go suite, `go vet`, module integrity, clean tidy state, and race detector. Process-level production checks rejected repository default credentials, loaded file-backed secrets, created the complete data root, returned live/ready 200, persisted SQLite data, and exited 0 after `SIGTERM`. M3 is the first Docker-authoring milestone and is intentionally handed to the learner |
+| 2026-09-26 | M3 complete | Created and exercised the replacement Go/React production image from scratch. Named dependency, frontend, test, application-build, and runtime stages use pinned multi-platform bases and BuildKit caches; the build regenerates embedded React assets and produces a 26 MB CGO binary. The `linux/amd64` runtime image reported 41.3 MB of content, ran as UID/GID 10001, served live/ready/frontend endpoints with HTTP 200, and exited 0 on `SIGTERM`. ARM64 is deferred until a concrete deployment requirement or M7 release validation |
