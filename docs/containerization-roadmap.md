@@ -11,7 +11,7 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M6 in progress — development workflow design started; remaining M4/M5 acceptance checks stay open |
+| Current milestone | M7 in progress — GHCR release workflow design started; remaining M4/M5 acceptance checks stay open |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
 | Runtime platforms | `linux/amd64`; add `linux/arm64` only for a deployment requirement |
@@ -73,7 +73,7 @@ Record these choices when reaching M7 or M8. A short note naming the choice and 
 
 | Decision/input | Needed by | Current planning assumption |
 |---|---|---|
-| Registry and image retention | M7 | GHCR or Docker Hub; preserve current and rollback releases |
+| Registry and image retention | M7 | GHCR: vadimnevlad/sheetable-app and vadimnevlad/sheetable-pdf2png; preserve current and rollback releases |
 | Source and license notices | M7 | Keep the released source revision and required notices discoverable |
 | Host, storage, access, and updates | M8 | One supported Linux server with a named maintainer |
 | Domain and HTTPS | M8 | Reverse proxy with automatic certificate renewal |
@@ -430,7 +430,7 @@ completed milestone.
 
 ### M6 — Development workflow and basic CI
 
-**Status:** In progress
+**Status:** Done
 
 **Progress:** README now documents the learner-exercised local integration
 workflow, environment template, volumes, configuration validation, lifecycle,
@@ -466,8 +466,11 @@ thumbnail generation. The learner authored `.github/workflows/ci.yaml` for pull
 requests and manual runs: explicit Docker test targets, both runtime image
 builds, Compose startup/readiness, authenticated PDF upload and PNG retrieval,
 failure logs, and unconditional temporary-volume cleanup. YAML parsing and
-source review passed; no GitHub run has been recorded. CI remains unverified.
-M4/M5 are not marked complete.
+source review passed. The learner supplied a GitHub screenshot showing successful
+`Container CI #1` for pull request #1 on branch `docker-v`, lasting 4m 22s.
+This is learner-supplied execution evidence; individual run logs were not
+independently retrieved. Together with the exercised local development workflow,
+the successful CI run completes M6. M4/M5 are not marked complete.
 
 **Goal:** Provide a practical local workflow and automate the stable checks already used during development.
 
@@ -500,7 +503,33 @@ These commands build the test stages; they do not replace runtime image builds o
 
 ### M7 — Tested image releases
 
-**Status:** Planned
+**Status:** In progress
+
+**Progress:** Selected GHCR for the two project images:
+`ghcr.io/vadimnevlad/sheetable-app` and
+`ghcr.io/vadimnevlad/sheetable-pdf2png`. The learner authored
+`.github/workflows/release-images.yaml` in explained blocks; the mentor copied
+the five existing Compose smoke/log/cleanup steps at the learner's request.
+The pushed-tag trigger matches `v*`; a Bash check then accepts only stable
+`vMAJOR.MINOR.PATCH` versions without leading zeroes. Release tags should point
+to reviewed commits on main and must not be moved or reused.
+The workflow explicitly runs both test targets, builds and loads linux/amd64
+runtime images with pinned Docker Actions, tests them through Compose, and
+blocks publication on Trivy HIGH/CRITICAL vulnerabilities, including unfixed
+findings. After successful checks it pushes those same loaded images with
+version and full commit-SHA tags using `GITHUB_TOKEN`, then records repository
+digests in the run summary. Both images have source/revision/version labels.
+Registry build caches are exported separately under mutable `buildcache` tags
+before release checks. They contain intermediate build layers, are not release
+images, and do not preserve all cache-mount contents between runners.
+Provenance generation is disabled for this local Docker export path; SBOM and
+provenance delivery remain follow-up work. Initial retention keeps all numbered
+release images, including rollback versions; no automated deletion is configured.
+The four pushes are sequential, not an atomic two-image publication. Only a
+successful complete run identifies a usable release pair.
+YAML parsing, action-pin/order review, and Bash syntax checks passed. No release
+workflow execution, registry publication, scanner result, or pull/run of a
+published image has been verified yet. M7 remains in progress.
 
 **Goal:** Publish tested, traceable, scanned images without rebuilding a different production artifact.
 
@@ -681,3 +710,5 @@ Written artifacts alone do not complete a milestone. Record executed checks and 
 | 2026-09-26 | M6 learner host backend startup | Learner reported successful host Go startup using the shared root .env and a successful readiness check through curl. React startup and a complete development UI upload remain unverified; M6 stays in progress |
 | 2026-09-26 | M6 learner development workflow | Learner reported React startup, login, and successful PDF upload with thumbnail generation using host Go/React and Compose PostgreSQL/pdf2png. Documented the frontend commands. The local hybrid workflow has functional learner evidence; PR CI remains the next block and M6 stays in progress |
 | 2026-09-26 | M6 learner CI authored | Reviewed learner-authored ci.yaml: pinned checkout, read-only repository permissions, explicit test/runtime targets, disposable CI configuration, full Compose readiness and authenticated PDF/PNG smoke check, failure logs, and cleanup. YAML parsing passed and the PDF fixture is tracked by Git. GitHub execution is pending; M6 remains in progress |
+| 2026-09-26 | M6 complete — first GitHub CI run | Learner supplied a screenshot showing successful Container CI #1 for pull request #1 on docker-v, duration 4m 22s. Individual job logs were not independently retrieved. Local hybrid workflow and PR CI now have execution evidence; M6 is Done. M7 release preparation is next; remaining M4/M5 checks stay open |
+| 2026-09-26 | M7 release workflow prepared | Learner authored the tag-triggered GHCR workflow with stable-version validation, pinned actions, explicit test targets, linux/amd64 runtime builds and registry caches, Compose PDF smoke checks, blocking HIGH/CRITICAL vulnerability scans, publication of the tested images, and digest summary. Mentor copied the existing smoke steps at request. YAML and Bash syntax checks passed. First GitHub release run, scanner findings, registry publication and published-image execution remain pending |

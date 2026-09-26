@@ -267,11 +267,38 @@ with thumbnail generation in this workflow.
 images, starts the integration Compose stack, and checks readiness, administrator
 login, PDF upload, and PNG thumbnail retrieval. It uses disposable test settings,
 prints service logs on failure, and removes the CI stack and its volumes afterward.
-It does not publish images. The workflow has passed YAML parsing and source review;
-its first GitHub execution remains pending.
+It does not publish images. The workflow passed YAML parsing and source review;
+the learner supplied a screenshot of successful GitHub run `Container CI #1`
+for pull request #1 on branch `docker-v` (4m 22s).
 
 CI runs on pull requests. Manual execution is also configured and becomes
 available through GitHub Actions when the workflow is on the default branch.
+
+### Container image releases
+
+`.github/workflows/release-images.yaml` is triggered by pushed version tags such
+as `v0.1.0`. It runs the test targets, builds linux/amd64 images, exercises the
+Compose upload/thumbnail flow, and blocks publication on HIGH or CRITICAL Trivy
+findings, including findings without an available fix. It then pushes the same
+tested images to GHCR with version and full commit-SHA tags and records their
+digests in the GitHub run summary. Registry build caches use separate mutable
+`buildcache` tags. Provenance/SBOM delivery remains roadmap work.
+
+Merge the reviewed workflow and application changes to main and wait for PR CI
+before preparing a new, unused release tag. From a clean checkout:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag -a v0.1.0 -m "Container release 0.1.0"
+git push origin v0.1.0
+```
+
+Use a new version for subsequent releases; do not move or reuse released tags.
+Keep numbered images available for rollback. The publication is sequential,
+so treat the release as complete only when the entire workflow succeeds.
+The release workflow has passed YAML parsing and Bash syntax review, but its
+first GitHub execution and published-image pull/run remain pending.
 
 ### Upstream references
 
