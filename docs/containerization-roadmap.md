@@ -460,8 +460,14 @@ separate development database. The loader preserves process-environment and
 file-secret precedence and fails on an explicitly selected missing/invalid
 file without exposing dotenv contents in errors. Full Go tests and vet passed
 on Go 1.27.1 in WSL. Existing root credentials were preserved while adding
-missing non-secret host defaults. Go/React live execution and CI remain
-unverified. M4/M5 are not marked complete.
+missing non-secret host defaults. The learner subsequently reported successful
+host Go startup/readiness, React startup, and a development UI PDF upload with
+thumbnail generation. The learner authored `.github/workflows/ci.yaml` for pull
+requests and manual runs: explicit Docker test targets, both runtime image
+builds, Compose startup/readiness, authenticated PDF upload and PNG retrieval,
+failure logs, and unconditional temporary-volume cleanup. YAML parsing and
+source review passed; no GitHub run has been recorded. CI remains unverified.
+M4/M5 are not marked complete.
 
 **Goal:** Provide a practical local workflow and automate the stable checks already used during development.
 
@@ -673,3 +679,5 @@ Written artifacts alone do not complete a milestone. Record executed checks and 
 | 2026-09-26 | M5 documentation / M6 started | Learner added .env.example with placeholders. Updated README from obsolete M0 status to the current local Compose workflow, persistence semantics, destructive-reset distinction, and troubleshooting. Inspected frontend development API URL and backend CORS handling; designed a learner-authored hybrid development overlay with localhost dependency ports and separate development database data. Runtime verification remains in WSL; M4/M5 acceptance checks remain open |
 | 2026-09-26 | M6 shared local configuration | Learner reported healthy dev dependency containers and requested one root .env. Added ENV_FILE selection and loader tests, expanded the template/README, and appended only missing non-secret host settings to the existing ignored root file. Backend .env did not exist and no copy was created. Go test ./... and go vet ./... passed in WSL on Go 1.27.1 after compatibility fixes for legacy feeder errors. Live host Go/React startup remains unverified |
 | 2026-09-26 | M6 learner host backend startup | Learner reported successful host Go startup using the shared root .env and a successful readiness check through curl. React startup and a complete development UI upload remain unverified; M6 stays in progress |
+| 2026-09-26 | M6 learner development workflow | Learner reported React startup, login, and successful PDF upload with thumbnail generation using host Go/React and Compose PostgreSQL/pdf2png. Documented the frontend commands. The local hybrid workflow has functional learner evidence; PR CI remains the next block and M6 stays in progress |
+| 2026-09-26 | M6 learner CI authored | Reviewed learner-authored ci.yaml: pinned checkout, read-only repository permissions, explicit test/runtime targets, disposable CI configuration, full Compose readiness and authenticated PDF/PNG smoke check, failure logs, and cleanup. YAML parsing passed and the PDF fixture is tracked by Git. GitHub execution is pending; M6 remains in progress |

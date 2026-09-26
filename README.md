@@ -214,8 +214,9 @@ M6 introduces a hybrid workflow: PostgreSQL and pdf2png run in Compose, while
 Go and React run on the host or in the IDE. `compose.dev.yaml` exposes
 dependency ports on localhost and uses the separate `dev-postgres-data` volume.
 The learner reported healthy development dependency containers and successful
-host Go startup with a readiness check through curl. React startup and the
-complete development upload workflow remain to be exercised.
+host Go startup with a readiness check through curl. The learner also reported
+successful React startup and a PDF upload with thumbnail generation through
+the development UI.
 
 After stopping the integration stack with `docker compose down`, start the
 development dependencies from the repository root:
@@ -229,7 +230,7 @@ the non-secret host settings from `.env.example` to an existing `.env`, keeping
 the current credentials. Host Go uses `127.0.0.1:5432` for PostgreSQL,
 `http://127.0.0.1:5000/createthumbnail` for PDF conversion, `DEV=true` for CORS,
 and `CONFIG_PATH=../.data/dev` for files paired with the development database.
-`SERVER_URL=http://localhost:3000` is the planned React dev-server URL.
+`SERVER_URL=http://localhost:3000` is the React dev-server URL.
 
 With Go and a C compiler installed in WSL, run the host backend:
 
@@ -244,8 +245,33 @@ to the process working directory, including `CONFIG_PATH`. Process environment
 variables override dotenv values; supported `_FILE` secrets override both.
 Without `ENV_FILE`, the existing optional `.env` in the working directory
 remains the default. The loader is covered by Go tests; host startup and readiness
-were reported successful by the learner. Next is React host setup and a UI upload
-smoke test.
+were reported successful by the learner.
+
+In a second WSL terminal, start React from the repository root with Node 24.x
+and npm 11.x:
+
+```bash
+cd frontend
+npm ci
+npm start
+```
+
+`npm ci` installs the locked dependencies on initial setup or after dependency
+changes. Open http://localhost:3000; React sends API requests to the host Go
+server on port 8080. The learner reported successful login and a PDF upload
+with thumbnail generation in this workflow.
+
+### Pull-request CI
+
+`.github/workflows/ci.yaml` runs both Dockerfile test targets, builds the runtime
+images, starts the integration Compose stack, and checks readiness, administrator
+login, PDF upload, and PNG thumbnail retrieval. It uses disposable test settings,
+prints service logs on failure, and removes the CI stack and its volumes afterward.
+It does not publish images. The workflow has passed YAML parsing and source review;
+its first GitHub execution remains pending.
+
+CI runs on pull requests. Manual execution is also configured and becomes
+available through GitHub Actions when the workflow is on the default branch.
 
 ### Upstream references
 
