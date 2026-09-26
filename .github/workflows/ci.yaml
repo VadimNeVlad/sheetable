@@ -33,6 +33,22 @@ jobs:
       - name: Build PDF service image
         run: docker build --target runtime --tag sheetable-pdf2png:local ./pdf2png
 
+      - name: Scan application image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sheetable-app:local
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Scan PDF service image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sheetable-pdf2png:local
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
       - name: Start Compose stack
         run: docker compose up --no-build --wait --wait-timeout 60
 
