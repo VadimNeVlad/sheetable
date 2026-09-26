@@ -3,4 +3,5 @@
 # python -m piptools compile --generate-hashes --strip-extras \
 #   --resolver=backtracking --output-file=requirements.txt requirements.in
 Flask==3.1.3
+gunicorn==26.2.0
 pdf2image==1.17.0

@@ -1,0 +1,16 @@
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dev-postgres-data:/var/lib/postgresql/data
+  pdf2png:
+    ports:
+      - "127.0.0.1:5000:5000"
+
+networks:
+  backend:
+    internal: false
+
+volumes:
+  dev-postgres-data:

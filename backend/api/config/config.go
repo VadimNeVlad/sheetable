@@ -38,29 +38,47 @@ func (b configBuilder) PanicOnMissingDotenv(status bool) configBuilder {
 }
 
 func (b configBuilder) Build() ServerConfig {
-	serverConfig = NewConfig()
+	configuration, err := b.build()
+	if err != nil {
+		log.Fatalf("error loading configuration: %v", err)
+	}
+	serverConfig = configuration
+	return serverConfig
+}
 
-	dotenvFile := ".env"
-	if b.dotenvFile != "" {
-		dotenvFile = b.dotenvFile
+func (b configBuilder) build() (ServerConfig, error) {
+	configuration := NewConfig()
+
+	dotenvFile := b.dotenvFile
+	if dotenvFile == "" {
+		dotenvFile = os.Getenv("ENV_FILE")
+	}
+	explicitDotenvFile := dotenvFile != ""
+	if dotenvFile == "" {
+		dotenvFile = ".env"
 	}
 	dotenvFeeder := feeder.DotEnv{Path: dotenvFile}
 	envFeeder := feeder.Env{}
 
-	err := config.New().AddStruct(&serverConfig).AddFeeder(dotenvFeeder).Feed()
+	// The legacy feeder stringifies errors instead of wrapping them. Check file
+	// existence directly so an absent optional .env remains compatible.
+	_, err := os.Stat(dotenvFile)
 	if err != nil {
-		if strings.Contains(err.Error(), "no such file") && b.errorOnMissingDotenv {
-			log.Fatalf("error loading config from dotenv file %s: %s", dotenvFile, err.Error())
+		if explicitDotenvFile || b.errorOnMissingDotenv || !os.IsNotExist(err) {
+			return ServerConfig{}, fmt.Errorf("cannot access dotenv file %s; check its path and permissions", dotenvFile)
 		}
+	} else if err = config.New().AddStruct(&configuration).AddFeeder(dotenvFeeder).Feed(); err != nil {
+		// Parser errors can include input values; do not print dotenv contents.
+		return ServerConfig{}, fmt.Errorf("cannot load dotenv file %s; check its syntax", dotenvFile)
 	}
-	err = config.New().AddStruct(&serverConfig).AddFeeder(envFeeder).Feed()
+	err = config.New().AddStruct(&configuration).AddFeeder(envFeeder).Feed()
 	if err != nil {
-		log.Fatalf("error loding config from environemnt: %s", err.Error())
+		return ServerConfig{}, fmt.Errorf("load configuration from environment: %w", err)
 	}
-	if err = applyFileSecrets(&serverConfig); err != nil {
-		log.Fatalf("error loading file-backed secrets: %s", err.Error())
+	if err = applyFileSecrets(&configuration); err != nil {
+		return ServerConfig{}, fmt.Errorf("load file-backed secrets: %w", err)
 	}
-	return serverConfig
+	return configuration, nil
 }
 
 func Config() ServerConfig {

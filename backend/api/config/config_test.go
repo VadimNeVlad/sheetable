@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,6 +82,56 @@ func TestPDF2PNGURLAcceptsServiceDNS(t *testing.T) {
 	config := ConfigBuilder().Build()
 
 	assert.Equal(t, config.PDF2PNGURL, "http://pdf2png:5000/createthumbnail")
+}
+
+func TestEnvFileLoadsSharedConfigurationWithEnvironmentOverrides(t *testing.T) {
+	dotenvFile := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(dotenvFile, []byte("ADMIN_EMAIL=admin@example.test\nDB_PASSWORD=shared-password\nDB_HOST=127.0.0.1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ENV_FILE", dotenvFile)
+	t.Setenv("DB_HOST", "db")
+
+	configuration, err := ConfigBuilder().build()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "admin@example.test", configuration.AdminEmail)
+	assert.Equal(t, "shared-password", configuration.Database.Password)
+	assert.Equal(t, "db", configuration.Database.Host)
+}
+
+func TestBuilderDotenvPathOverridesEnvFileSelection(t *testing.T) {
+	dotenvFile := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(dotenvFile, []byte("ADMIN_EMAIL=explicit@example.test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ENV_FILE", filepath.Join(t.TempDir(), "missing.env"))
+
+	configuration, err := ConfigBuilder().WithDotenvFile(dotenvFile).build()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "explicit@example.test", configuration.AdminEmail)
+}
+
+func TestExplicitEnvFileFailsWithoutExposingItsContents(t *testing.T) {
+	for _, scenario := range []string{"missing", "invalid_value"} {
+		t.Run(scenario, func(t *testing.T) {
+			dotenvFile := filepath.Join(t.TempDir(), ".env")
+			if scenario == "invalid_value" {
+				if err := os.WriteFile(dotenvFile, []byte("PORT=private-test-value\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("ENV_FILE", dotenvFile)
+
+			_, err := ConfigBuilder().build()
+
+			if assert.Error(t, err) {
+				assert.Contains(t, err.Error(), dotenvFile)
+				assert.NotContains(t, err.Error(), "private-test-value")
+			}
+		})
+	}
 }
 
 func TestEnvironmentVarzOverrideDefaults(t *testing.T) {

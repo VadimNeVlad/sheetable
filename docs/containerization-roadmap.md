@@ -2,7 +2,7 @@
 
 ## Document purpose
 
-This is the living delivery plan for turning SheetAble into a reproducible, secure, and operable containerized application. It is intended to be readable by engineering leadership, application developers, DevOps engineers, security reviewers, and operators.
+This is the working plan for containerizing SheetAble and operating it on one Linux server. It also supports learning Docker through small changes that solve concrete application problems.
 
 The plan deliberately separates discovery, application prerequisites, image construction, local orchestration, CI/CD, and production hardening. Work should be delivered in small reviewable changes, with every completed milestone backed by executable verification.
 
@@ -11,30 +11,38 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M4 ready — PDF service hardening and image construction are next |
+| Current milestone | M6 in progress — development workflow design started; remaining M4/M5 acceptance checks stay open |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
-| Runtime platforms | `linux/amd64` initially; `linux/arm64` deferred until a deployment requirement or M7 release validation |
+| Runtime platforms | `linux/amd64`; add `linux/arm64` only for a deployment requirement |
 | Primary database | PostgreSQL |
 | Last updated | 2026-09-26 |
 
 Status values used in this document: `Planned`, `In progress`, `Blocked`, `Done`.
 
-## Executive summary
+## Practical route
 
-SheetAble entered this program with partial, outdated containerization. After its M0 findings were recorded, the unsupported legacy Dockerfiles and Docker image workflow were retired so they could not be mistaken for a supported path. Their pre-removal state remains available in Git history, while the material findings are retained in this roadmap. The replacement Dockerfiles, Compose model, and image workflow will be designed from verified requirements rather than copied from the retired implementation. The application still cannot be built and operated reproducibly as one system: the frontend artifact flow is manual, the backend depends on a hard-coded external PDF service, persistence is implicit, and the default configuration is unsafe for production.
+Use these four steps as the main route. The numbered milestones below provide acceptance criteria; the decision and progress logs preserve the work already verified.
 
-The target outcome is:
+| Step | Milestones | Working result |
+|---|---|---|
+| 1. Build the images | M0-M4 | One Go/React image and one PDF service image, with locked dependencies, non-root processes, and verified startup/shutdown |
+| 2. Run the stack and preserve data | M5 | Compose runs app, PDF service, and official PostgreSQL; uploads and database data survive container replacement |
+| 3. Develop and release safely | M6-M7 | A practical local workflow, PR checks, and tested images published to a registry with traceable digests |
+| 4. Operate on one server | M8 | HTTPS, runtime secrets, controlled updates, working backup/restore, and documented host maintenance |
 
-- a reproducible production image containing the Go API and compiled React assets;
-- a separate hardened PDF-to-PNG service image;
-- PostgreSQL based on the official image;
-- a fast, documented development workflow;
-- a production-like Compose environment with healthchecks, internal networking, persistent storage, and least privilege;
-- CI that tests, scans, attests, and publishes immutable multi-platform images;
-- documented backup, restore, upgrade, rollback, and troubleshooting procedures.
+**Current position:** M0-M3 are complete. M4 application checks passed, its Dockerfile is written, and the learner has verified image builds, container health, real conversion, missing-input handling, and exit code 0 after stop in WSL. Remaining runtime checks are listed in M4 and will accompany Compose integration in M5.
 
-Success is not measured by the number of containers. It is measured by deployment repeatability, change safety, developer feedback time, security posture, and recoverability.
+Steps 1-2 establish the containerized integration baseline. Steps 3-4 prepare it for routine team use and real production data. M9 is an optional backlog and is not required to complete this route.
+
+### How to use the plan
+
+- Take one small block at a time: explain the problem, implement the change, run its checks, and record the result.
+- Keep non-root execution, locked dependencies, health, graceful shutdown, runtime secrets, and persistent data in the baseline.
+- Add performance tuning and additional infrastructure when a measured problem requires them.
+- Keep operating instructions short and executable. One maintainer can own registry, host, secrets, and backups; separate teams or approval systems are not required.
+
+Here, reproducible builds mean controlled source, locked application dependencies, pinned base images, and a documented build process. They do not yet mean byte-identical rebuilds: packages installed from Debian repositories can change. Deploy the exact tested image digest, maintain base-image updates, and defer repository snapshots or stronger reproducibility controls until required.
 
 ## Scope and assumptions
 
@@ -45,9 +53,9 @@ Success is not measured by the number of containers. It is measured by deploymen
 - Development, integration, and single-host production Compose configurations.
 - Required application changes for container configuration, service discovery, health, graceful shutdown, and persistence.
 - Dependency locking and build-cache optimization.
-- CI validation, image publishing, vulnerability scanning, SBOM, and provenance.
+- CI validation, image publishing, vulnerability scanning, and automatically available build metadata.
 - Runtime hardening, data lifecycle, backup/restore, upgrade, rollback, and operational documentation.
-- Release promotion through protected environments without rebuilding an already tested image.
+- Deployment of the tested image digest without rebuilding it for production.
 - Docker-host security, lifecycle, capacity, logging, and recovery requirements for the initial single-host deployment.
 - Open-source and third-party license compliance for source and container-image distribution.
 
@@ -59,21 +67,19 @@ Success is not measured by the number of containers. It is measured by deploymen
 - User-uploaded PDFs and generated images use a persistent filesystem initially. Object storage is a future scalability decision.
 - The React production bundle continues to be served by the Go process.
 
-### Open decisions and required organizational inputs
+### Decisions before release and deployment
 
-These do not block M0 unless stated otherwise. They must receive an accountable owner and be resolved before the indicated milestone is accepted.
+Record these choices when reaching M7 or M8. A short note naming the choice and maintainer is sufficient for the initial single-host service.
 
 | Decision/input | Needed by | Current planning assumption |
 |---|---|---|
-| Container registry, repository ownership, and retention policy | M7 | GHCR or Docker Hub; immutable release digests |
-| Production host provider, Linux distribution, sizing, storage, and patch owner | M8 | One supported Linux host with replaceable infrastructure and monitored persistent storage |
-| Domain, DNS owner, TLS issuer, and certificate-renewal owner | M8 | Reverse proxy terminates automatically renewed public TLS |
-| Availability objective, maintenance window, and accepted single-host downtime | M8 | Single-host risk is explicitly accepted for the initial release |
-| RPO, RTO, backup retention, encryption, and off-host destination | M8 | Values are set from business impact after M0 data-volume measurements |
-| Production secret store and rotation owner | M8 | Secrets are delivered at runtime and never stored in Git or image layers |
-| Data classification, retention, deletion, and privacy requirements for uploaded documents and account data | M8 | Persistent user data is access-controlled and retained only according to an approved policy |
-| AGPL and third-party license compliance approver | M7 | Legal/compliance owner approves corresponding-source delivery and notices before release |
-| Self-hosted versus managed PostgreSQL for the long-term platform | M9 | Self-hosted PostgreSQL is used for the initial Compose baseline |
+| Registry and image retention | M7 | GHCR or Docker Hub; preserve current and rollback releases |
+| Source and license notices | M7 | Keep the released source revision and required notices discoverable |
+| Host, storage, access, and updates | M8 | One supported Linux server with a named maintainer |
+| Domain and HTTPS | M8 | Reverse proxy with automatic certificate renewal |
+| Acceptable downtime | M8 | One server; document maintenance and outage expectations |
+| Backups and recovery | M8 | Set acceptable data loss (RPO), recovery time (RTO), retention, encryption, and an off-host destination |
+| Runtime secrets | M8 | Choose restricted storage, generation, and rotation procedures |
 
 ### Explicit non-goals for the initial delivery
 
@@ -84,7 +90,9 @@ These do not block M0 unless stated otherwise. They must receive an accountable 
 - A full observability platform before stable health, logging, and runtime contracts exist.
 - Unrelated application rewrites hidden inside infrastructure changes.
 
-## Current-state assessment
+## Starting baseline and findings
+
+This section records the state discovered in M0. Resolved findings remain here as context; current implementation status is recorded in the milestones and progress log.
 
 ### Application topology
 
@@ -156,23 +164,7 @@ Only the public entrypoint is published on the host.
 | `pdf2png` | PDF first-page rendering | Pinned Python dependencies, Poppler, production WSGI server |
 | `db` | PostgreSQL | Official image, no local Dockerfile by default |
 
-### Containerization implementation boundaries
-
-The retirement of the legacy Docker implementation creates an intentional gap: the repository has no supported application image definitions until M3 and M4. This is expected and must not be filled by restoring or lightly editing the retired files.
-
-| Milestone | Containerization work introduced | Primary repository artifacts |
-|---|---|---|
-| M0 | Record application, host, dependency, and historical container findings; do not restore or build the retired images as an acceptance requirement | Baseline evidence and roadmap updates only |
-| M1 | Make future build inputs deterministic and build contexts intentional | Frontend/Python lock strategy, verified Go modules, `.dockerignore` files, supported builder versions |
-| M2 | Establish application runtime contracts required by containers | Application configuration, service discovery, health/readiness, shutdown, retry, secrets, and data-root changes |
-| M3 | Create the Go/React production image from scratch | New root `Dockerfile` for the `app` image and executable image verification |
-| M4 | Create the PDF conversion production image from scratch | New `pdf2png/Dockerfile`, pinned Python restore, production WSGI runtime, and executable image verification |
-| M5 | Introduce the first supported multi-container runtime model | New `compose.yaml` for `app`, `pdf2png`, and official PostgreSQL |
-| M6 | Add containerized development behavior | `compose.dev.yaml`, watch/hot-reload configuration, and development cache/mount rules |
-| M7 | Add image validation and publication automation | New CI image workflows, Buildx configuration if required, scanning, SBOM, provenance, and registry publication |
-| M8 | Add the production deployment and host-operation layer | Production Compose overlay, reverse proxy/TLS, promotion, rollback, backup/restore, and host runbooks |
-
-Fresh-start rule: historical Dockerfiles, image workflows, and BuildKit configuration may be inspected in Git history only to understand previous failures. They are not templates, supported commands, or acceptance artifacts. Any useful behavior must be re-justified against the current target architecture and implemented in the milestone that owns it.
+The unsupported legacy Dockerfiles and image workflow were retired after baseline capture. Their content remains in Git history and their findings are recorded above. The replacement images use the verified build and runtime requirements.
 
 ## Delivery strategy
 
@@ -180,27 +172,27 @@ Changes should normally map to one milestone or a coherent subset of a milestone
 
 Each milestone is complete only when its acceptance criteria have been executed and evidence is available in the pull request or delivery notes.
 
-CI, security, documentation, and dependency maintenance are cross-cutting workstreams rather than activities deferred until their final milestone. No supported application Dockerfile exists before M3/M4, and no supported Compose topology exists before M5:
+Checks and documentation accompany each change. M6 automates the local verification already established in earlier milestones:
 
 - M0 establishes the first repeatable validation commands and records baseline evidence.
-- Every subsequent milestone adds its new checks to CI as soon as they become executable.
-- M7 completes publication, attestations, multi-platform assembly, and enforcement policy; it does not introduce testing for the first time.
+- Until M6, milestone verification is executed with documented local commands and recorded in delivery notes.
+- M6 automates the stable language, image-build, and Compose smoke checks used for pull requests.
+- M7 adds release publication, vulnerability policy, registry caching, and immutable release metadata; it does not introduce testing for the first time.
 - Documentation and the progress/decision logs are updated in the same change that alters supported behavior.
 - Legacy dependency upgrades are delivered as isolated application changes, but production release remains blocked by unresolved policy-level vulnerabilities or unsupported production runtimes.
 
 ### Program success measures
 
-M0 records the non-image baseline, owners, measurement method, and unavailable-tool limitations. Image-specific measurements begin when the replacement images become executable in M3 and M4; Compose and host measurements follow in M5 and M8. Target values are approved before the related implementation milestone is considered complete. At minimum, track:
+M0 records the non-image baseline and unavailable-tool limitations. Image-specific measurements begin when the replacement images become executable in M3 and M4; Compose and host measurements follow in M5 and M8. Track the small set of signals that directly affect release and recovery:
 
-- clean and cached image build duration;
-- final image sizes and layer composition;
+- final image sizes;
 - container startup-to-ready time;
-- development edit-to-feedback time;
-- idle and representative CPU/memory/PID usage;
 - vulnerability counts by policy severity and exception expiry;
-- backup age, restore duration, recovery-point objective (RPO), and recovery-time objective (RTO);
-- deployment duration, smoke-test result, and rollback duration;
-- host disk usage for images, volumes, build cache, and container logs.
+- release and post-deployment smoke-test results;
+- backup freshness and successful restore duration;
+- rollback success and duration.
+
+Build timings, detailed layer analysis, edit-to-feedback latency, and CPU/memory/PID benchmarks are collected only when performance, cost, or capacity becomes a concrete concern.
 
 ## Milestones
 
@@ -218,7 +210,7 @@ M0 records the non-image baseline, owners, measurement method, and unavailable-t
 - Run the existing Go tests and record failures.
 - Determine a compatible Node version and reproduce the current frontend build.
 - Run or characterize the current Python service.
-- Record the material findings from the retired Dockerfiles and image workflow using Git history. Do not restore or build them as an M0 acceptance requirement; the first supported image measurements belong to M3 and M4.
+- Record historical Docker build and workflow findings from Git history.
 - Document current environment variables and persistent paths.
 - Inventory external runtime dependencies, DNS destinations, credentials, timeouts, and expected degraded behavior, including SMTP, Open Opus, GitHub Releases, remote image hosts, and remote fonts.
 - Record the current Docker-host assumptions: Engine installation, daemon access, firewall exposure, logging driver, data root, available disk, and startup behavior.
@@ -317,7 +309,7 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 
 **Deliverables:**
 
-- Create a new root multi-stage Dockerfile with named dependency, build, test, and runtime targets; do not copy or restore the retired backend Dockerfile.
+- Create the root multi-stage Dockerfile with named dependency, build, test, and runtime targets.
 - Build the frontend with `npm ci`.
 - Generate or replace `go.rice` assets during the image build.
 - Restore Go modules before copying frequently changing source files.
@@ -338,37 +330,79 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 - The image serves both React and the API and passes the smoke test.
 - `docker stop` results in graceful application and database shutdown within the configured timeout.
 - The initially supported `linux/amd64` image is exercised on its target architecture. Any additional platform must be built and exercised on that architecture or an approved equivalent before it is claimed as supported or released.
-- The new image definition has no runtime or build dependency on files from the retired Docker implementation.
 
 ### M4 — Production PDF service image
 
-**Status:** Planned
+**Status:** In progress
 
-**Goal:** Create from scratch an internal, hardened, observable PDF conversion service image.
+**Progress:** The service now uses request-scoped temporary storage, validates
+multipart input and request size, bounds Poppler conversion time, returns
+controlled API errors, exposes liveness, and runs through a configurable
+Gunicorn contract. Gunicorn 26.2.0 is hash-locked. On Python 3.14.7, a clean
+hash-verified install, dependency check, eight unit tests, Gunicorn config
+validation, real PDF-to-PNG smoke test, temporary-file cleanup, and graceful
+`SIGTERM` shutdown all passed. `pdf2png/Dockerfile` is now written. Build and
+runtime smoke checks were then performed by the learner in WSL: the `test` and
+`runtime` targets built successfully (runtime used cache), health responded,
+a real PDF returned a 380 x 535 PNG, missing input returned the expected error
+without breaking health, and `docker stop --timeout 15` was followed by exit
+code 0. These are learner-reported results, not checks rerun by the mentor.
+The learner subsequently reported another successful UI PDF upload after
+app/PDF read-only, tmpfs, capability, and privilege restrictions were applied
+through Compose. Effective UID/GID, container temporary-file cleanup, and
+cancellation behavior have not been explicitly checked in the running stack.
+M4 remains in progress.
+
+**Goal:** Build and verify the internal PDF conversion image.
 
 **Deliverables:**
 
-- Create a new `pdf2png/Dockerfile`; do not copy or restore the retired PDF Dockerfile.
-- Upgrade to a supported Python base image.
-- Install Poppler with minimal OS packages and remove package-manager metadata.
-- Restore pinned Python dependencies separately from application source.
-- Replace the Flask development server with a production WSGI server.
-- Run under a non-root UID/GID.
-- Use safe temporary files and deterministic cleanup on success, error, and cancellation.
-- Validate request content and enforce an upload-size limit.
-- Add a lightweight health endpoint and structured stdout/stderr logging.
-- Define request, worker, and shutdown timeouts.
+- Use a supported pinned Python base and restore locked dependencies separately from application source.
+- Install Poppler with minimal OS packages; keep package-manager caches out of image layers. APT cache mounts are optional.
+- Run Gunicorn as non-root, with health, stdout/stderr logging, and explicit conversion/worker/shutdown timeouts.
+- Keep request-size validation and request-scoped temporary files with cleanup on success and error; exercise cancellation during container verification.
 
 **Acceptance criteria:**
 
 - The service image exposes only its documented application port and does not require public internet discovery; Compose network isolation and service-DNS integration are verified in M5.
 - Malformed input returns a controlled client error rather than terminating a worker.
+- A real PDF request returns the expected PNG from Poppler inside the container.
 - Temporary files do not accumulate across requests.
 - The container stops gracefully and passes its healthcheck as non-root.
 
 ### M5 — Compose integration and persistence
 
-**Status:** Planned
+**Status:** In progress
+
+**Progress:** The learner authored `compose.yaml` for app, pdf2png, and pinned
+official PostgreSQL 17.11 Bookworm. It includes local `.env` interpolation,
+service-DNS configuration, app-only localhost port publication, named data
+volumes, and health-based dependency ordering. Source review confirmed the
+configuration names and paths against the application. After the initial
+commands below, the learner reported successful stack startup, the frontend
+at localhost, administrator login with configured credentials, and working
+UI navigation. These are learner-reported results; Docker is unavailable and
+access to WSL is denied in the mentor's process. The initial commands, from
+the repository root in WSL, are:
+
+```bash
+docker compose config --quiet
+docker compose up --build --detach
+```
+
+The learner subsequently reported uploading the test PDF through the UI,
+seeing it on the page, recreating the Compose containers, and finding the
+saved upload still present after refreshing the page. This supports the
+database/files persistence scenario; separate original-file download and
+thumbnail verification after recreation have not been reported explicitly.
+The current file now places db and pdf2png on an internal backend network and
+app on backend plus an egress network. App and pdf2png have read-only root
+filesystems, writable /tmp tmpfs mounts, all capabilities dropped, and
+no-new-privileges. The learner reported recreating services and successfully
+saving a second PDF afterward. This verifies the upload scenario under these
+settings; network isolation itself and remaining M4 runtime checks have not
+been explicitly exercised. It is not a production-ready deployment or a
+completed milestone.
 
 **Goal:** Introduce the first supported Compose model and run the complete production-like stack with one documented command.
 
@@ -379,12 +413,10 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 - Add PostgreSQL and application-data named volumes.
 - Use internal networks and publish only the application entrypoint.
 - Add healthchecks and dependency conditions.
-- Add restart behavior appropriate for single-host operation.
 - Separate non-secret configuration from secrets.
-- Add least-privilege runtime controls: `read_only`, `tmpfs`, `cap_drop`, `no-new-privileges`, and resource/PID limits where compatible.
+- Add compatible least-privilege runtime controls: `read_only`, `tmpfs`, `cap_drop`, and `no-new-privileges`.
 - Validate the fully merged model with `docker compose config`; avoid `privileged`, host networking, Docker-socket mounts, and fixed `container_name` values unless a reviewed requirement exists.
-- Define log-driver and rotation settings that prevent an unbounded container log from filling the host disk.
-- Verify clean startup, restart, container recreation, and host reboot behavior.
+- Verify clean startup, service restart, and container recreation.
 
 **Acceptance criteria:**
 
@@ -396,55 +428,90 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 - An intentional volume removal is clearly documented as destructive.
 - A configuration validation check catches unresolved variables, invalid Compose structure, and unsafe production defaults before containers start.
 
-### M6 — Development experience
+### M6 — Development workflow and basic CI
 
-**Status:** Planned
+**Status:** In progress
 
-**Goal:** Provide a fast full-container workflow and a supported hybrid workflow.
+**Progress:** README now documents the learner-exercised local integration
+workflow, environment template, volumes, configuration validation, lifecycle,
+and troubleshooting commands. Commands not yet exercised, including clean
+checkout and destructive reset, are not claimed verified. The frontend's dev
+API URL and backend CORS configuration were inspected for the hybrid workflow.
+The learner authored `compose.dev.yaml`, which was source-reviewed: expose
+database/PDF ports only on localhost, disable internal isolation for the
+development backend network, and use a separate PostgreSQL development volume
+so host-side files do not conflict with the existing integration database.
+The next commands, from the repository root in WSL, validate the merged model
+without printing secrets and start only the containerized dependencies:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml config --quiet
+docker compose -f compose.yaml -f compose.dev.yaml up --detach --wait db pdf2png
+```
+
+Stop/remove the existing integration stack with `docker compose down` before
+switching network configuration; retain its named volumes. The learner reported
+that the dev dependency containers started and reached healthy status. Merged
+configuration validation was not separately reported. At the learner's request,
+Go and Compose now share one root `.env`; no backend copy is needed. Host Go
+selects it with `ENV_FILE=../.env go run .` from backend/. Localhost dependency
+addresses, `DEV=true` for CORS, and `../.data/dev` for files pair with the
+separate development database. The loader preserves process-environment and
+file-secret precedence and fails on an explicitly selected missing/invalid
+file without exposing dotenv contents in errors. Full Go tests and vet passed
+on Go 1.27.1 in WSL. Existing root credentials were preserved while adding
+missing non-secret host defaults. Go/React live execution and CI remain
+unverified. M4/M5 are not marked complete.
+
+**Goal:** Provide a practical local workflow and automate the stable checks already used during development.
 
 **Deliverables:**
 
 - Add an explicit `compose.dev.yaml`.
-- Add frontend hot reload.
-- Add Go hot reload or an equivalently fast rebuild loop.
-- Use bind mounts or Compose Watch based on measured Windows/WSL behavior.
-- Preserve container-local dependency caches with named volumes or BuildKit caches.
-- Support an infrastructure-only mode for developers running Go and React from the host/IDE.
+- Make the hybrid workflow the default: run PostgreSQL and `pdf2png` in Compose while Go and React run from the host or IDE.
+- Preserve container-local dependency caches with named volumes or BuildKit caches where containers perform builds.
+- Add full-container frontend/Go hot reload or Compose Watch only if the team needs that workflow and it remains reliable on Windows/WSL.
 - Document debugging, test execution, database reset, logs, and common failure recovery.
-- Measure clean start and edit-to-feedback latency for both full-container and hybrid workflows and document the supported fast path for Windows/WSL 2.
+- Add pull-request CI for the frontend build, Go tests/vet, Python tests, application image builds, and one Compose smoke test.
+- Invoke both Dockerfile `test` targets explicitly before release builds. The final runtime stages do not depend on them, so a normal image build skips them.
 
 **Acceptance criteria:**
 
-- A source edit produces a visible development update without rebuilding every service.
-- Switching between full-container and hybrid development does not require changing committed configuration.
+- The documented hybrid workflow supports normal frontend and backend development without rebuilding infrastructure services.
+- If full-container hot reload is implemented, a source edit updates the relevant service without rebuilding the entire stack.
 - Development credentials are clearly non-production and cannot be confused with production secrets.
 - Raw Compose commands remain documented even if convenience wrappers are added.
-- The agreed edit-to-feedback target is met without sharing host dependency directories such as `node_modules` into incompatible container platforms.
+- Pull-request CI runs the established language checks, builds both application images, and exercises the Compose stack without publishing a release.
 
-### M7 — CI, supply-chain security, and image publication
+The existing test targets can be invoked from the repository root with:
+
+```bash
+docker build --target test .
+docker build --target test ./pdf2png
+```
+
+These commands build the test stages; they do not replace runtime image builds or the Compose smoke test. They were not executed during this documentation revision because Docker is unavailable to the current process.
+
+### M7 — Tested image releases
 
 **Status:** Planned
 
-**Goal:** Ensure every published image is tested, traceable, scanned, and reproducible.
+**Goal:** Publish tested, traceable, scanned images without rebuilding a different production artifact.
 
 **Deliverables:**
 
 - Update Docker GitHub Actions and pin third-party actions according to repository policy.
-- Add frontend, Go, and Python checks.
-- Add Docker build checks and native-platform PR builds.
-- Run container smoke tests in CI.
+- Reuse the M6 language, image-build, and smoke checks as release gates.
 - Add registry-backed or GitHub Actions build cache.
 - Add vulnerability scanning with an explicit severity/failure policy.
-- Add secret scanning and dependency/license review with documented exception ownership and expiry.
-- Publish semantic-version, commit-SHA, and controlled channel tags.
-- Build `linux/amd64` and `linux/arm64` release images.
-- Attach SBOM and build provenance to registry releases.
-- Verify generated SBOM/provenance and retain the image digest as the release identity.
+- Keep secret scanning and automated dependency updates enabled with documented exception ownership and expiry.
+- Publish version and commit-SHA tags; channel tags are optional convenience aliases.
+- Publish `linux/amd64`; add `linux/arm64` only when a real deployment target requires it and the image is exercised on that architecture or an approved equivalent.
+- Retain the image digest as the release identity and attach SBOM/provenance when the selected Buildx/registry workflow provides them automatically.
 - Ensure build secrets use secret mounts rather than build arguments.
 - Automate base-image, language-dependency, and GitHub Action update proposals and schedule rebuilds even when application source has not changed.
-- Define registry naming, immutability, retention, and deletion/recovery policy.
-- Review AGPL-3.0 source-availability requirements and third-party notices with the appropriate owner; make the corresponding source for released modifications discoverable as required by the approved compliance plan.
-- Add keyless image signing after registry publication is stable, or record an approved time-bounded exception.
+- Define registry naming, immutable release tags, and a basic retention policy.
+- Add a release checklist that keeps the AGPL source revision and required third-party notices discoverable.
 
 **Acceptance criteria:**
 
@@ -452,10 +519,10 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 - A failed test, smoke test, or policy-level vulnerability prevents release publication.
 - A published digest can be traced to source revision, workflow, dependencies, and build metadata.
 - Production deployment refers to an immutable version or digest, not only `latest`.
-- The release process can verify attestations and signatures according to the adopted policy before promotion.
-- License and source-availability checks have an accountable owner and do not rely on an undocumented assumption.
+- Automatically generated SBOM/provenance, when enabled, are attached to the same published digest.
+- The released source revision and required notices are discoverable from the release record.
 
-### M8 — Release promotion, production operations, and host hardening
+### M8 — Single-server production and recovery
 
 **Status:** Planned
 
@@ -463,33 +530,22 @@ entrypoint with HTTP 200 and exited 0 after `docker stop` without an OOM kill.
 
 **Deliverables:**
 
-- Add an explicit production Compose overlay.
-- Add reverse proxy and TLS termination when the internal stack is stable.
-- Define staging and production environments, protected deployment credentials, approval rules, and an audit trail.
-- Promote the exact tested image digest between environments; never rebuild source separately for production.
-- Add pre-deployment validation, post-deployment smoke tests, automatic failure detection, and a rehearsed rollback command.
-- Define secret generation, storage, rotation, and incident replacement procedures.
-- Define data classification, retention, deletion, access, and privacy controls for uploaded documents, generated assets, account data, backups, and logs.
-- Define RPO, RTO, backup retention, encryption, integrity verification, and off-host/off-machine storage requirements.
-- Implement and test application-consistent PostgreSQL and application-data backup and restore procedures.
-- Document upgrade, rollback, and failed-migration recovery.
-- Define Docker-host patching, firewall, SSH access, daemon socket protection, rootless/user-namespace decision, Docker data-root capacity, and Engine upgrade policy.
-- Ensure the Docker API is not exposed insecurely and deployment identities receive only the access required by the chosen deployment method.
-- Define restart policy, host boot behavior, and whether Docker live-restore is appropriate; do not combine conflicting restart supervisors.
-- Configure log retention/rotation and integration points for external observability.
-- Define basic service-level indicators: availability, latency, error rate, storage, and backup freshness.
-- Alert on disk exhaustion risk, unhealthy/restarting services, TLS expiry, backup age/failure, and sustained resource saturation.
-- Define registry outage, external-service outage, host loss, credential compromise, and disk-full runbooks.
-- Run a recovery exercise from backups on a clean environment.
+- Add a production Compose overlay with reverse proxy/TLS and runtime secrets; document secret generation, restricted storage, and rotation.
+- Deploy the tested digest, validate configuration, and run a post-deployment smoke test. Document and rehearse update, rollback, and failed-migration recovery commands.
+- Set RPO/RTO and backup retention. Store encrypted backups off-host and test integrity and a consistent PostgreSQL-plus-files restore into a clean environment.
+- Document host patching, firewall/SSH access, and daemon-socket protection; name the maintainer.
+- Configure restart policy and log rotation; check disk capacity and document host reboot, daemon restart, and certificate renewal behavior.
+
+A short runbook with tested commands is sufficient. Separate staging approval workflows, a dedicated secret-management platform, and an observability stack are optional M9 decisions.
 
 **Acceptance criteria:**
 
 - The same immutable digest that passed release checks is deployed and can be rolled back without rebuilding it.
-- Production deployment is protected by the approved environment and credential controls.
+- Production deployment uses restricted credentials and runtime secrets that are absent from Git and image layers.
 - Database and application files can be restored into a clean stack within the agreed RPO/RTO.
 - Operators can identify unhealthy services using documented commands and health output.
 - No production secret or persistent data depends solely on a container writable layer.
-- Host reboot, Docker daemon restart/upgrade, disk-pressure behavior, and certificate renewal have documented and tested outcomes appropriate to the service objective.
+- Host reboot, Docker daemon restart, disk-pressure behavior, and certificate renewal have documented outcomes appropriate to the single-host service.
 
 ### M9 — Post-baseline architecture decisions
 
@@ -507,27 +563,31 @@ Potential decisions:
 - Migration from `go.rice` to Go-native embedding.
 - Separate migration jobs and release orchestration.
 - High availability or automated host failover beyond the accepted single-host risk.
+- Full-container hot reload when the hybrid development workflow is insufficient.
+- Additional release architectures such as `linux/arm64` without a current deployment consumer.
+- Image signing and custom attestation verification beyond automatically generated SBOM/provenance.
+- Formal registry deletion/recovery procedures beyond basic retention and immutable release tags.
+- Staging approval workflows and a wider deployment audit system.
+- Formal data-classification, retention, privacy, and deletion programs that require organizational or legal ownership.
+- Full SLI/alerting coverage and exhaustive incident runbooks.
+- Docker live-restore, rootless mode, or user-namespace remapping when the threat model or availability target requires them.
+- Detailed CPU, memory, PID, build-time, and deployment-time benchmarking when capacity or cost requires it.
 
-These items require explicit capacity, availability, compliance, or organizational justification.
+These items require a concrete capacity, availability, compliance, or team need. They are not acceptance requirements for M0-M8.
 
 ## Definition of Done for the initial program
 
-The initial containerization program is complete when M0 through M8 are `Done` and all of the following are demonstrated:
+The integration baseline is complete at M5: a clean checkout builds both non-root images, serves the current frontend/API, converts a PDF, and preserves database data and uploads when containers are replaced. Health, dependency failure, and graceful shutdown are exercised.
 
-- A clean checkout can build and run the complete stack from documented commands.
-- Application images are reproducible, non-root, minimal, and pass policy-level vulnerability checks.
-- The frontend embedded in an image is built from the same source revision as the backend.
-- PostgreSQL and application files survive container replacement.
-- Backup restoration has been exercised, not merely documented.
-- Shutdown, restart, unhealthy dependency, and rollback behavior have been tested.
-- CI publishes immutable, traceable multi-platform images with SBOM and provenance.
-- The exact tested digest is promoted through protected environments and can be verified before deployment.
-- Development supports both a fast full-container workflow and an infrastructure-only hybrid workflow.
-- Operations documentation is sufficient for an engineer unfamiliar with the implementation to deploy, diagnose, update, and restore it.
-- The production host has explicit access, patching, firewall, logging, disk-capacity, daemon, and reboot policies.
-- RPO/RTO, encrypted off-host backup retention, and application-consistent restore behavior are approved and exercised.
-- External runtime dependencies and their degraded behavior are documented and observable.
-- AGPL source-availability and third-party license obligations have an accountable, approved compliance path.
+The initial production program is complete when M0-M8 are `Done`, including:
+
+- A documented development workflow and CI that tests, scans, and publishes traceable `linux/amd64` releases; available SBOM/provenance metadata is retained when enabled.
+- Deployment and rollback using the tested digests, with HTTPS and runtime secrets.
+- An exercised, application-consistent restore of database and files from encrypted off-host backups within the chosen RPO/RTO.
+- A short operating runbook covering deploy, diagnose, update, recover, host access/patching, restart, log rotation, disk capacity, and external-service failures.
+- Discoverable released source and required license notices.
+
+Written artifacts alone do not complete a milestone. Record executed checks and tool limitations; optional M9 work does not block this definition of done.
 
 ## Risk register
 
@@ -543,13 +603,13 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | Host bind mounts are slow on Windows | Poor development feedback time | Measure Compose Watch, WSL filesystem, and bind mounts; document the supported fast path |
 | Default credentials reach production | Account compromise | Fail production startup on defaults; use secrets and rotation procedures |
 | Scanning reveals extensive legacy vulnerabilities | Release blocked or risk accepted informally | Define severity policy, ownership, exception expiry, and staged modernization |
-| Large multi-platform builds slow every PR | Slow feedback and high CI cost | Native build on PR; multi-platform build on merge/release |
+| Unneeded additional-platform builds slow CI | Slow feedback and high CI cost | Build the native platform on pull requests and add another release platform only for a real deployment consumer |
 | Data volume exists but cannot be restored | False sense of recoverability | Make restore exercise a release criterion |
 | Database and filesystem backups are taken at inconsistent points | Restored metadata references missing or mismatched files | Define an application-consistent backup sequence and test full-system restore |
 | External APIs, SMTP, fonts, or remote images are unavailable | Partial feature failure, latency, or broken UI | Inventory dependencies; apply bounded timeouts; define degraded behavior and observability |
 | Docker socket or remote daemon access is compromised | Root-equivalent host compromise | Restrict trusted users; avoid socket mounts; use protected SSH/TLS access only when required; evaluate rootless/user namespaces |
 | Container logs, images, cache, or volumes fill the host disk | Full service outage or database corruption | Configure log rotation; monitor data root and volume growth; define safe cleanup and capacity procedures |
-| Production is rebuilt rather than promoted | Untested artifact reaches users | Promote the exact CI-produced digest through protected environments |
+| Production is rebuilt rather than promoted | Untested artifact reaches users | Deploy the exact CI-produced digest and retain the previous release for rollback |
 | AGPL or third-party license obligations are missed | Legal/compliance exposure and delayed release | Assign compliance ownership; review corresponding-source delivery and license notices before release |
 | CI controls arrive only after most implementation changes | Regressions enter before gates exist | Add executable checks incrementally in every milestone; reserve M7 for final publication and enforcement |
 
@@ -572,6 +632,9 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-24 | Keep dependency modernization separate from container definition work | M1 records owner, severity, runtime-support status, and release gates. Weekly update PRs cover npm, Go, Python, GitHub Actions, and future base images, but major upgrades and bot-generated lock changes require isolated review and tests |
 | 2026-09-24 | Exclude local generated frontend artifacts from the root image context | The M3 application image must build React and regenerate `rice-box.go` from the same source revision; excluding both local `frontend/build` and the tracked generated embed prevents a stale workstation artifact from entering an image |
 | 2026-09-26 | Support `linux/amd64` as the initial verified runtime platform and defer `linux/arm64` | The current development and initial deployment baseline is x86-64, while no ARM consumer or production host requirement exists. Multi-platform publication and ARM CGO validation will be added in M7 only when justified by a deployment requirement |
+| 2026-09-26 | Keep M4-M8 focused on a practical single-host delivery baseline | The earlier plan mixed required containerization with mature enterprise platform controls. Basic CI moves to M6, while optional architectures, signing, formal governance, advanced observability, and detailed benchmarking move to the M9 backlog until a concrete requirement exists |
+| 2026-09-26 | Use a four-step learning route with detailed milestone checks as reference | Separate images, Compose/data, development/releases, and production/recovery. Keep practical controls and tested recovery; use short maintainer notes and runbooks instead of mandatory approval systems. Locked inputs do not claim byte-identical OS package rebuilds |
+| 2026-09-26 | Share one root dotenv file for local Compose and host Go | Avoid duplicated credentials. ENV_FILE explicitly selects the file for host Go, while Compose supplies container-specific addresses through environment. Preserve default loader behavior, process overrides, and file-backed secrets; reject explicitly selected files that cannot be loaded |
 
 ## Progress log
 
@@ -599,3 +662,14 @@ The initial containerization program is complete when M0 through M8 are `Done` a
 | 2026-09-24 | M2 external dependencies and database lifecycle | Bounded Open Opus and SMTP calls, restored normal SMTP TLS verification, converted outbound failures from panic paths into errors/fallback, made schema migration errors actionable, and made initial administrator creation idempotent when the users table is empty. Recorded the initial one-replica migration and backward-compatible rollback contract in `docs/runtime-contracts.md` |
 | 2026-09-24 | M2 complete | Verified the full Go suite, `go vet`, module integrity, clean tidy state, and race detector. Process-level production checks rejected repository default credentials, loaded file-backed secrets, created the complete data root, returned live/ready 200, persisted SQLite data, and exited 0 after `SIGTERM`. M3 is the first Docker-authoring milestone and is intentionally handed to the learner |
 | 2026-09-26 | M3 complete | Created and exercised the replacement Go/React production image from scratch. Named dependency, frontend, test, application-build, and runtime stages use pinned multi-platform bases and BuildKit caches; the build regenerates embedded React assets and produces a 26 MB CGO binary. The `linux/amd64` runtime image reported 41.3 MB of content, ran as UID/GID 10001, served live/ready/frontend endpoints with HTTP 200, and exited 0 on `SIGTERM`. ARM64 is deferred until a concrete deployment requirement or M7 release validation |
+| 2026-09-26 | Roadmap audit | Simplified M4-M8 around the work normally required for a small real-world single-host service: hardened images, Compose integration, a hybrid development workflow, basic PR CI, immutable releases, and tested recovery. Deferred optional enterprise governance, extra architectures, signing, advanced observability, and detailed performance measurement to M9 |
+| 2026-09-26 | M4 application preparation | Replaced user-controlled working filenames with request-scoped temporary storage; added input/size validation, bounded Poppler conversion, controlled API errors, liveness, and Gunicorn timeouts/logging. Added Gunicorn 26.2.0 to the hash lock. A clean Python 3.14.7 restore, dependency check, eight unit tests, Gunicorn configuration check, real Poppler conversion to a 380×535 PNG, temporary-file cleanup, and graceful `SIGTERM` shutdown passed. Dockerfile authoring was the next step at this point |
+| 2026-09-26 | Roadmap learning review | Added the four-step route, removed repeated legacy-build restrictions, simplified release/deployment decisions and M4/M8 checklists, and separated the M5 integration baseline from M8 production readiness. Recorded explicit Docker test targets and the limits of rebuild reproducibility. M4 Dockerfile is written but container verification remains pending; Docker was unavailable to this review process. No milestone was marked complete |
+| 2026-09-26 | M4 learner container smoke checks | Learner reported successful test/runtime target builds in WSL, working container health, real conversion to a 380 x 535 PNG, expected missing-file error with continuing health, and exit code 0 after docker stop with a 15-second timeout. Runtime build used cache. Remaining runtime checks are tracked in M4 and will accompany M5 integration; mentoring now groups actions into one task/result review rather than pausing after each command |
+| 2026-09-26 | M5 learner Compose preparation | Learner wrote the three-service Compose file with local .env settings, named volumes, service-DNS wiring, app-only published port, and health-based startup dependencies. Source reviewed; Docker/Compose execution remains for the learner's WSL terminal. Compose is the normal integration path; manual docker run is reserved for useful isolated diagnostics. M5 is in progress |
+| 2026-09-26 | M5 learner first stack startup | Learner reported that the Compose stack started, the app opened on localhost, configured administrator credentials worked, and UI navigation worked. Upload/PDF-service integration, container replacement persistence, explicit network isolation, and runtime restrictions remain unverified. M5 remains in progress |
+| 2026-09-26 | M5 learner upload and persistence | Learner reported a successful UI PDF upload and that the saved upload remained visible after Compose container recreation and page refresh. Separate post-recreation original-file download and thumbnail checks were not explicitly reported. Next block is explicit networks and app/PDF runtime restrictions in the learner-authored Compose file; M5 remains in progress |
+| 2026-09-26 | M5 learner networks and runtime restrictions | Reviewed learner-authored backend internal network, app egress attachment, and app/PDF read-only/tmpfs/cap-drop/no-new-privileges settings. Learner reported recreating services and saving a second PDF successfully. Network connectivity restrictions themselves and remaining M4 runtime checks are not claimed verified; M5 remains in progress |
+| 2026-09-26 | M5 documentation / M6 started | Learner added .env.example with placeholders. Updated README from obsolete M0 status to the current local Compose workflow, persistence semantics, destructive-reset distinction, and troubleshooting. Inspected frontend development API URL and backend CORS handling; designed a learner-authored hybrid development overlay with localhost dependency ports and separate development database data. Runtime verification remains in WSL; M4/M5 acceptance checks remain open |
+| 2026-09-26 | M6 shared local configuration | Learner reported healthy dev dependency containers and requested one root .env. Added ENV_FILE selection and loader tests, expanded the template/README, and appended only missing non-secret host settings to the existing ignored root file. Backend .env did not exist and no copy was created. Go test ./... and go vet ./... passed in WSL on Go 1.27.1 after compatibility fixes for legacy feeder errors. Live host Go/React startup remains unverified |
+| 2026-09-26 | M6 learner host backend startup | Learner reported successful host Go startup using the shared root .env and a successful readiness check through curl. React startup and a complete development UI upload remain unverified; M6 stays in progress |
