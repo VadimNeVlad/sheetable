@@ -1,0 +1,6 @@
+services:
+  app:
+    image: ghcr.io/vadimnevlad/sheetable-app:0.1.0
+
+  pdf2png:
+    image: ghcr.io/vadimnevlad/sheetable-pdf2png:0.1.0

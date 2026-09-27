@@ -11,7 +11,7 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M7 in progress — local Trivy and native-advisory checks pass; three native CVEs have a scoped PDF-path assessment expiring 2026-10-27; GitHub verification and remaining M4/M5 checks stay open |
+| Current milestone | M7 Done; M8 in progress — deployment environment discovery and production configuration review started; server/domain details and remaining M4/M5 checks stay open |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
 | Runtime platforms | `linux/amd64`; add `linux/arm64` only for a deployment requirement |
@@ -503,7 +503,7 @@ These commands build the test stages; they do not replace runtime image builds o
 
 ### M7 — Tested image releases
 
-**Status:** In progress
+**Status:** Done
 
 **Progress:** Selected GHCR for the two project images:
 `ghcr.io/vadimnevlad/sheetable-app` and
@@ -553,8 +553,17 @@ dependency versions or X11 linkage. Local positive/negative gate checks passed.
 This is not a claim that the affected libraries were patched.
 Severity gates remain unchanged and no residual-risk waiver was added. Details are in
 [`docs/security-remediation-2026-09-27.md`](security-remediation-2026-09-27.md).
-No release workflow execution, registry publication, or pull/run of a published
-image has been verified yet. M7 remains in progress.
+The learner supplied screenshots of successful Container CI #4 (4m 12s) and
+Release container images #1 for v0.1.0 at commit 2aeae63 (7m 41s). These record
+overall workflow success; individual step logs and published digests have not
+been independently retrieved.
+The learner subsequently reported successfully pulling both GHCR images tagged
+`0.1.0`, then starting them through `compose.release.yaml` and opening the app
+on localhost. These are learner-reported results, not independently inspected
+containers. The learner also confirmed successful PDF upload and thumbnail
+rendering on the published images. This completes the practical M7 release
+baseline using the stated learner-supplied evidence. It does not mark production
+deployment, SBOM/provenance delivery or the separate M4/M5 checks complete.
 
 **Goal:** Publish tested, traceable, scanned images without rebuilding a different production artifact.
 
@@ -584,7 +593,16 @@ image has been verified yet. M7 remains in progress.
 
 ### M8 — Single-server production and recovery
 
-**Status:** Planned
+**Status:** In progress
+
+**Progress:** Started deployment environment discovery. The existing release
+Compose overlay selects published images but inherits development mode and
+environment-based credentials from the local base file; it is not yet a
+production configuration. Source review confirms production validation and
+file-backed API/admin/database secrets already exist. The published release
+supports linux/amd64. Server OS/architecture, access and domain are being
+confirmed before selecting proxy/TLS and authoring a deployable configuration.
+No server deployment or production/recovery verification has been performed.
 
 **Goal:** Promote a tested immutable release into a supportable, secure, and recoverable single-host deployment.
 
@@ -697,6 +715,16 @@ Written artifacts alone do not complete a milestone. Record executed checks and 
 | 2026-09-26 | Share one root dotenv file for local Compose and host Go | Avoid duplicated credentials. ENV_FILE explicitly selects the file for host Go, while Compose supplies container-specific addresses through environment. Preserve default loader behavior, process overrides, and file-backed secrets; reject explicitly selected files that cannot be loaded |
 
 ## Progress log
+
+Latest delivery evidence: learner-supplied screenshots show successful
+`Container CI #4` for PR #1 on `docker-v` (4m 12s) and
+`Release container images #1` for `v0.1.0`, commit `2aeae63` (7m 41s).
+The workflow publishes version tags `0.1.0` for both images. Individual logs,
+registry digests remain independently unverified. The learner subsequently
+reported pulling both published images and starting the release Compose stack,
+with the UI working on localhost, and then confirmed PDF upload and thumbnail
+rendering. M7's release baseline is Done; M8 production and recovery is next.
+Earlier pending statements below describe the status at the time of each entry.
 
 | Date | Milestone | Update |
 |---|---|---|
