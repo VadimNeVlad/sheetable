@@ -11,12 +11,12 @@ The plan deliberately separates discovery, application prerequisites, image cons
 | Field | Value |
 |---|---|
 | Overall status | In progress |
-| Current milestone | M7 in progress — GHCR release workflow design started; remaining M4/M5 acceptance checks stay open |
+| Current milestone | M7 in progress — local Trivy and native-advisory checks pass; three native CVEs have a scoped PDF-path assessment expiring 2026-10-27; GitHub verification and remaining M4/M5 checks stay open |
 | Initial delivery target | Docker Compose on a single Linux host |
 | Development platform | Windows/WSL 2 with Docker Desktop, plus Linux compatibility |
 | Runtime platforms | `linux/amd64`; add `linux/arm64` only for a deployment requirement |
 | Primary database | PostgreSQL |
-| Last updated | 2026-09-26 |
+| Last updated | 2026-09-27 |
 
 Status values used in this document: `Planned`, `In progress`, `Blocked`, `Done`.
 
@@ -527,9 +527,34 @@ provenance delivery remain follow-up work. Initial retention keeps all numbered
 release images, including rollback versions; no automated deletion is configured.
 The four pushes are sequential, not an atomic two-image publication. Only a
 successful complete run identifies a usable release pair.
-YAML parsing, action-pin/order review, and Bash syntax checks passed. No release
-workflow execution, registry publication, scanner result, or pull/run of a
-published image has been verified yet. M7 remains in progress.
+YAML parsing, action-pin/order review, and Bash syntax checks passed. The learner
+added the same Trivy gates to PR CI and supplied a failed application-image scan:
+56 Debian findings (52 HIGH, 4 CRITICAL) and 32 Go-module findings (all HIGH).
+This is learner-supplied scan evidence, not a verified exploitability assessment.
+Available dependency fixes and Debian advisory applicability require separate,
+tested remediation; the PDF-image scan is not evidenced by this report.
+Subsequent local remediation upgraded the six affected Go modules, replaced
+archived jwt-go with golang-jwt/jwt/v5, patched a new transitive QUIC advisory,
+and moved app/PDF runtimes to digest-pinned Debian 13 bases. Python runtime pip
+and ensurepip were removed after identifying two vendored installation-tool
+findings. Host Go tests/vet/module verification, both Docker test/runtime builds,
+and an isolated Compose login/PDF/PNG/invalid-token smoke check passed. Trivy
+0.70.0 reports zero HIGH/CRITICAL Go or Python findings.
+The app uses verified digest-pinned Distroless Debian 13; PDF now uses official
+Python 3.14.7 on Alpine 3.24 with DejaVu fallback fonts. Both local Trivy scans
+report zero HIGH/CRITICAL without ignore files. Test/runtime builds, integration
+and shutdown checks passed; a font regression was found and fixed, with a
+rendered-text check added to both workflows. Alpine's database omits three
+known TIFF/X11 advisory IDs; a temporary gate checks system and Pillow-bundled
+libraries. Exact Poppler 25.12.0 source and runtime dependency review found
+these three CVEs inapplicable to the explicitly fixed PDF-to-PPM-to-PNG path.
+The assessment expires 2026-10-27 and fails closed on changed application source,
+dependency versions or X11 linkage. Local positive/negative gate checks passed.
+This is not a claim that the affected libraries were patched.
+Severity gates remain unchanged and no residual-risk waiver was added. Details are in
+[`docs/security-remediation-2026-09-27.md`](security-remediation-2026-09-27.md).
+No release workflow execution, registry publication, or pull/run of a published
+image has been verified yet. M7 remains in progress.
 
 **Goal:** Publish tested, traceable, scanned images without rebuilding a different production artifact.
 
@@ -712,3 +737,11 @@ Written artifacts alone do not complete a milestone. Record executed checks and 
 | 2026-09-26 | M6 learner CI authored | Reviewed learner-authored ci.yaml: pinned checkout, read-only repository permissions, explicit test/runtime targets, disposable CI configuration, full Compose readiness and authenticated PDF/PNG smoke check, failure logs, and cleanup. YAML parsing passed and the PDF fixture is tracked by Git. GitHub execution is pending; M6 remains in progress |
 | 2026-09-26 | M6 complete — first GitHub CI run | Learner supplied a screenshot showing successful Container CI #1 for pull request #1 on docker-v, duration 4m 22s. Individual job logs were not independently retrieved. Local hybrid workflow and PR CI now have execution evidence; M6 is Done. M7 release preparation is next; remaining M4/M5 checks stay open |
 | 2026-09-26 | M7 release workflow prepared | Learner authored the tag-triggered GHCR workflow with stable-version validation, pinned actions, explicit test targets, linux/amd64 runtime builds and registry caches, Compose PDF smoke checks, blocking HIGH/CRITICAL vulnerability scans, publication of the tested images, and digest summary. Mentor copied the existing smoke steps at request. YAML and Bash syntax checks passed. First GitHub release run, scanner findings, registry publication and published-image execution remain pending |
+| 2026-09-27 | M7 PR vulnerability triage | Learner added Trivy scans to PR CI and supplied a failing app-image report: 56 Debian and 32 Go-module HIGH/CRITICAL findings. Initial source/advisory review groups Go remediation into x/crypto, x/net, x/text, YAML, Gin, and replacement of archived jwt-go; Debian findings include repeated CVEs and missing Bookworm fixes. Debian explicitly states the vulnerable MiniZip code for CVE-2023-45853 is not built into the affected Bookworm zlib binary packages. No dependencies, base images, or scan exceptions were changed; fix compatibility, image re-scan, PDF-image findings, and release execution remain pending |
+| 2026-09-27 | M7 dependency and runtime remediation | Upgraded Go x/*, YAML and Gin; migrated JWT to v5 with HS256/expiration checks and negative tests; patched Gin's QUIC dependency. Raised module minimum to Go 1.26 and fixed a legacy dynamic Printf call. Moved app/PDF runtimes to digest-pinned Debian 13 and removed runtime pip/ensurepip. Host tests/vet/verify, govulncheck (zero affected calls), both Docker test targets/runtime builds, and isolated Compose readiness/login/PDF/PNG/401 checks passed. Trivy 0.70.0 reports zero HIGH/CRITICAL language findings, app OS 43 HIGH and PDF OS 64 HIGH, with zero CRITICAL in both. Gates remain unchanged and release remains blocked; see the remediation record for evidence and residual assessment work |
+| 2026-09-27 | M7 scoped OS applicability review | Replaced the full GnuPG dependency with minimal gpg in the PDF runtime and verified conversion after rebuilding. Added exact-version non-applicability records for absent systemd-homed, tiffcrop and tpm2daemon, expiring 2026-10-27, with pre-scan absence checks in both workflows. Positive checks and a negative image containing tiffcrop behaved correctly. Trivy reports app 41 HIGH and PDF 54 HIGH after records (raw 43/59), zero CRITICAL and zero HIGH/CRITICAL language findings. Isolated Compose smoke and YAML/Bash validation passed. GitHub execution remains pending; M7 and the release remain blocked by residual OS findings |
+| 2026-09-27 | M7 curl/Expat/TIFF review | Reviewed nine library advisories and upstream Poppler 25.03.0 call paths. Fresh Trixie package metadata offers no newer candidate for the installed curl/Expat/TIFF libraries. Added one exact-version expiring record for CVE-2026-12064, which upstream says affects only absent curl CLI; real-image checks passed and a negative curl image was rejected. Re-scan leaves PDF 53 HIGH (17 IDs), app 41 HIGH, zero CRITICAL. Remaining library findings stay enabled; no custom library builds, unstable packages or severity reductions were introduced. M7 remains in progress and release remains blocked |
+| 2026-09-27 | M7 shared-base applicability and runtime reduction | Reviewed seven application IDs; four util-linux CVEs account for 36 repeated package pairs. Removed unused nsenter and infocmp executables from both runtimes; confirmed Archive::Tar is absent. Added three exact-PURL records expiring 2026-10-27 and extended pre-scan guards. Both runtime builds and isolated Compose smoke passed; three negative images were rejected. Trivy raw counts remain app 43/PDF 59 HIGH; after all records app 28 HIGH (4 IDs), PDF 39 HIGH (14 IDs), zero CRITICAL and no HIGH/CRITICAL language findings. Mount/libmount and libacl findings stay enabled; M7 remains in progress and release remains blocked |
+| 2026-09-27 | M7 app runtime reduced to Distroless | Tested a separate official Distroless Debian 13 candidate, then replaced the root runtime with its immutable digest while keeping UID/GID 10001 and data paths. Candidate/final Compose PostgreSQL PDF/PNG smoke passed; final SQLite persistence across replacement and SIGTERM exit 0 passed. Strict Trivy scan recognizes OS and Go packages and returns zero HIGH/CRITICAL without app ignores. Removed the app ignore file and its shell-based prerequisite step from both workflows; documented shell-free diagnostics. PDF remains at 39 HIGH (14 IDs), zero CRITICAL; release/GitHub execution remain pending and M7 stays in progress |
+| 2026-09-27 | M7 PDF Alpine runtime and scanner coverage | Verified official Python 3.14.7/Alpine 3.24 with the unchanged hash lock and eight tests. Added DejaVu after detecting missing fixture text; PNG now matches the old runtime pixel-for-pixel, and both workflows check rendered text. Final builds, Compose PDF/PNG/401 smoke, health and SIGTERM exit 0 passed. Both Trivy scans return zero HIGH/CRITICAL without ignore files, but Alpine data omits three known TIFF/X11 CVEs; a temporary inventory/version gate rejects the real PDF image and passes a synthetic fixed-version fixture. Release remains blocked on these three assessments, not silently approved by the green scanner; M7 stays in progress |
+| 2026-09-27 | M7 native PDF path assessment | Confirmed stable Alpine offers no fixes for the three native IDs. Verified the checksum-matched Poppler 25.12.0 source, upstream TIFF patch, actual pdfinfo/pdftoppm linkage, pdf2image PPM decoder and Pillow bundled TIFF 4.7.1. Explicitly selected PPM without Cairo. Added exact-source/dependency, amd64-only non-applicability assessment expiring 2026-10-27 to the existing gate, including bundled TIFF. Eight tests, runtime build, Compose PDF/PNG/text/401 smoke and real-image gate passed; five negative scope checks were rejected. GitHub CI/release execution remains pending and M7 is not complete |

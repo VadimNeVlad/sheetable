@@ -4,6 +4,12 @@ This internal service renders the first page of an uploaded PDF as a 380×535
 PNG thumbnail. It does not require persistent storage: every request uses an
 isolated temporary directory that is removed before the response completes.
 
+The supported container uses digest-pinned official Python 3.14.7 on Alpine
+3.24, Poppler and DejaVu fonts. Python dependencies install from the existing
+hash lock as binary wheels. DejaVu provides fallback rendering for PDFs that
+do not embed fonts; removing it can produce successful but text-free thumbnails.
+The runtime runs as UID/GID 10001 and needs writable temporary storage only.
+
 ## HTTP contract
 
 - `GET /health/live` returns HTTP 200 while the process can serve requests.

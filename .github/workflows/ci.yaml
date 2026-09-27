@@ -49,6 +49,12 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
 
+      - name: Check known PDF native advisories
+        run: |
+          docker run --rm --interactive --read-only --network none \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - < scripts/check-native-advisories.py
+
       - name: Start Compose stack
         run: docker compose up --no-build --wait --wait-timeout 60
 
@@ -84,6 +90,11 @@ jobs:
             http://127.0.0.1:8080/api/sheet/thumbnail/ci-smoke
 
           test "$(file --brief --mime-type /tmp/ci-thumbnail.png)" = "image/png"
+
+          docker run --rm --interactive --read-only --network none \
+            --mount type=bind,source=/tmp/ci-thumbnail.png,target=/thumbnail.png,readonly \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - /thumbnail.png < scripts/check-thumbnail.py
 
       - name: Show Compose logs on failure
         if: failure()

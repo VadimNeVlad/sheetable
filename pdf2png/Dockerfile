@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_IMAGE=python:3.14.7-slim-bookworm@sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56
+ARG PYTHON_IMAGE=python:3.14.7-alpine3.24@sha256:9e9fde4d32eedce0b661d9ab91e826b62dddf28e928c230ec55f1866cac66b01
 
 FROM ${PYTHON_IMAGE} AS python-deps
 
@@ -33,20 +33,11 @@ RUN python -m pip check && \
 
 FROM ${PYTHON_IMAGE} AS runtime
 
-RUN --mount=type=cache,id=sheetable-pdf2png-apt-cache,target=/var/cache/apt,sharing=locked \
-  --mount=type=cache,id=sheetable-pdf2png-apt-lists,target=/var/lib/apt/lists,sharing=locked \
-  apt-get update && \
-  apt-get install --yes --no-install-recommends \
-  poppler-utils
+# Non-embedded PDF text needs fallback fonts even when conversion returns 200.
+RUN apk add --no-cache poppler-utils font-dejavu
 
-RUN groupadd --gid 10001 pdf2png && \
-  useradd \
-  --uid 10001 \
-  --gid 10001 \
-  --no-create-home \
-  --home-dir /nonexistent \
-  --shell /usr/sbin/nologin \
-  pdf2png
+RUN addgroup -S -g 10001 pdf2png && \
+  adduser -S -D -H -u 10001 -G pdf2png -h /nonexistent -s /sbin/nologin pdf2png
 
 ENV VIRTUAL_ENV=/opt/venv \
   PATH="/opt/venv/bin:${PATH}" \
@@ -56,6 +47,11 @@ ENV VIRTUAL_ENV=/opt/venv \
 WORKDIR /app
 
 COPY --from=python-deps --chown=0:0 /opt/venv /opt/venv
+
+# Installation tools belong to the build stages, not the running PDF service.
+RUN /opt/venv/bin/python -m pip uninstall --yes pip && \
+  /usr/local/bin/python -m pip uninstall --yes pip && \
+  rm -rf /usr/local/lib/python3.14/ensurepip
 
 COPY --chown=0:0 --chmod=0444 \
   app.py \

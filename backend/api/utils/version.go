@@ -16,5 +16,5 @@ func PrintAsciiVersion() {
  \$$    $$| $$  | $$ \$$     \ \$$     \  \$$  $$| $$  | $$| $$    $$| $$ \$$     \
   \$$$$$$  \$$   \$$  \$$$$$$$  \$$$$$$$   \$$$$  \$$   \$$ \$$$$$$$  \$$  \$$$$$$$ `
 
-	fmt.Printf(asciiArt + Version + "\n \n")
+	fmt.Print(asciiArt + Version + "\n \n")
 }

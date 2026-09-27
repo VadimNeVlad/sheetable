@@ -133,6 +133,11 @@ jobs:
 
           test "$(file --brief --mime-type /tmp/ci-thumbnail.png)" = "image/png"
 
+          docker run --rm --interactive --read-only --network none \
+            --mount type=bind,source=/tmp/ci-thumbnail.png,target=/thumbnail.png,readonly \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - /thumbnail.png < scripts/check-thumbnail.py
+
       - name: Scan application image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -149,6 +154,12 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
       
+      - name: Check known PDF native advisories
+        run: |
+          docker run --rm --interactive --read-only --network none \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - < scripts/check-native-advisories.py
+
       - name: Publish release images
         shell: bash
         run: |

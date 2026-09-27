@@ -72,6 +72,9 @@ def create_thumbnail():
                 last_page=1,
                 single_file=True,
                 size=(380, 535),
+                # Keep the reviewed headless PPM path; do not select Cairo/TIFF.
+                fmt="ppm",
+                use_pdftocairo=False,
                 timeout=app.config["PDF_CONVERSION_TIMEOUT_SECONDS"],
             )
             if not pages:

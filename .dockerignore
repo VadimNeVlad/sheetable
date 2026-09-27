@@ -25,6 +25,7 @@ frontend/coverage
 **/*.out
 backend/build
 backend/*.exe
+tmp
 
 # Local configuration, secrets, and runtime data
 **/.env

@@ -81,6 +81,8 @@ class PdfToPngServiceTests(unittest.TestCase):
         self.assertEqual(conversion_options["first_page"], 1)
         self.assertEqual(conversion_options["last_page"], 1)
         self.assertEqual(conversion_options["size"], (380, 535))
+        self.assertEqual(conversion_options["fmt"], "ppm")
+        self.assertFalse(conversion_options["use_pdftocairo"])
         self.assertEqual(conversion_options["timeout"], 25)
 
     @patch("app.convert_from_path", side_effect=PDFPageCountError("invalid PDF"))

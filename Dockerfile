@@ -48,29 +48,19 @@ FROM app-build-base AS app-build
 
 RUN --mount=type=cache,id=sheetable-go-mod,target=/go/pkg/mod,sharing=locked \
   --mount=type=cache,id=sheetable-go-build,target=/root/.cache/go-build,sharing=locked \
-  mkdir -p /out && \
+  install -d -m 0750 /out/data && \
   CGO_ENABLED=1 go build \
   -trimpath \
   -ldflags="-s -w" \
   -o /out/sheetable \
   .
 
-FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS runtime
-
-RUN apt-get update && \
-  apt-get install --yes --no-install-recommends ca-certificates && \
-  rm -rf /var/lib/apt/lists/* && \
-  groupadd --gid 10001 sheetable && \
-  useradd \
-  --uid 10001 \
-  --gid 10001 \
-  --no-create-home \
-  --home-dir /nonexistent \
-  --shell /usr/sbin/nologin \
-  sheetable && \
-  install -d -o sheetable -g sheetable -m 0750 /var/lib/sheetable
+FROM gcr.io/distroless/base-debian13:nonroot@sha256:0896741ba5bafd3ac87ea025a5f578952f2d238ddc3614cb368acc983a687aa2 AS runtime
 
 WORKDIR /app
+
+# Preserve the existing data-volume owner; the runtime has no shell or apt.
+COPY --from=app-build --chown=10001:10001 /out/data /var/lib/sheetable
 
 COPY --from=app-build --chown=0:0 --chmod=0555 \
   /out/sheetable \

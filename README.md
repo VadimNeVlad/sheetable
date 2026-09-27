@@ -150,6 +150,13 @@ PDF service share an internal `backend` network. App also joins `egress` for
 external API calls. App and PDF containers run as UID/GID 10001 with read-only
 root filesystems and a writable, size-limited `/tmp` tmpfs.
 
+The app runtime uses digest-pinned Debian 13 Distroless: it contains the Go
+binary, libc and required runtime data, without a shell or package manager.
+Use HTTP health endpoints and `docker compose logs app` for routine diagnostics;
+`docker compose exec app sh` is unavailable. The PDF service uses official
+Python 3.14.7 on Alpine 3.24 with Poppler and DejaVu fallback fonts. Its Python
+dependencies retain their existing hash lock.
+
 The commands and functional results above were reported by the learner in
 the current working checkout. A clean-checkout run has not yet been recorded;
 remaining milestone checks are tracked in the roadmap.
@@ -232,7 +239,8 @@ the current credentials. Host Go uses `127.0.0.1:5432` for PostgreSQL,
 and `CONFIG_PATH=../.data/dev` for files paired with the development database.
 `SERVER_URL=http://localhost:3000` is the React dev-server URL.
 
-With Go and a C compiler installed in WSL, run the host backend:
+With Go 1.26 or newer (verified on 1.27.1) and a C compiler installed in WSL,
+run the host backend:
 
 ```bash
 cd backend
@@ -263,13 +271,22 @@ with thumbnail generation in this workflow.
 
 ### Pull-request CI
 
-`.github/workflows/ci.yaml` runs both Dockerfile test targets, builds the runtime
-images, starts the integration Compose stack, and checks readiness, administrator
+`.github/workflows/ci.yaml` runs both Dockerfile test targets, builds and scans the
+runtime images, starts the integration Compose stack, and checks readiness, administrator
 login, PDF upload, and PNG thumbnail retrieval. It uses disposable test settings,
 prints service logs on failure, and removes the CI stack and its volumes afterward.
 It does not publish images. The workflow passed YAML parsing and source review;
 the learner supplied a screenshot of successful GitHub run `Container CI #1`
-for pull request #1 on branch `docker-v` (4m 22s).
+for pull request #1 on branch `docker-v` (4m 22s), before security gates were added.
+Both current images pass the local Trivy HIGH/CRITICAL scans without Trivy ignore
+files. A temporary native-advisory gate covers three upstream CVEs omitted from
+Alpine's database, with a narrowly reviewed non-applicability assessment for
+the current PDF-to-PPM-to-PNG path, expiring 2026-10-27. The affected libraries
+are still unpatched; changes to the reviewed source or dependencies require
+reassessment. The updated GitHub
+workflows require a rerun; scan success alone does not confirm release readiness.
+See the [security remediation record](docs/security-remediation-2026-09-27.md)
+for locally verified fixes and remaining release blockers.
 
 CI runs on pull requests. Manual execution is also configured and becomes
 available through GitHub Actions when the workflow is on the default branch.
