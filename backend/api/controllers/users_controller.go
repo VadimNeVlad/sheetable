@@ -239,6 +239,9 @@ func (server *Server) RequestPasswordReset(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, "SMTP backend not configured. Go take a look at the docs to get started with emails.")
 		return
 	}
-	utils.SendPasswordResetEmail(resetPasswordId, form.Email)
+	if err = utils.SendPasswordResetEmail(resetPasswordId, form.Email); err != nil {
+		utils.DoError(c, http.StatusBadGateway, err)
+		return
+	}
 	c.JSON(http.StatusOK, "Sent email successfully")
 }

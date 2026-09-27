@@ -13,6 +13,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -32,8 +33,14 @@ import (
 // Structs for handling the response on the Open Opus API
 
 type Response struct {
-	Composers *[]Comp `json: "composers"`
+	Composers []Comp `json:"composers"`
 }
+
+const (
+	externalRequestTimeout  = 10 * time.Second
+	maximumOpenOpusBodySize = 1 << 20
+	unknownPortraitURL      = "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg"
+)
 
 type Comp struct {
 	Name         string `json:"name"`
@@ -101,7 +108,8 @@ func (server *Server) UploadFile(c *gin.Context) {
 	}
 
 	// Send POST request to python server for creating the thumbnail (first page of pdf as an image)
-	if !utils.RequestToPdfToImage(fullpath, sanitize.Name(Unidecode(sheetName))) {
+	if err = utils.RequestToPdfToImage(fullpath, sanitize.Name(Unidecode(sheetName))); err != nil {
+		utils.DoError(c, http.StatusBadGateway, fmt.Errorf("thumbnail generation failed: %w", err))
 		return
 	}
 
@@ -134,39 +142,56 @@ func (server *Server) UpdateSheet(c *gin.Context) {
 }
 
 func getPortraitURL(composerName string) Comp {
-	resp, err := http.Get("https://api.openopus.org/composer/list/search/" + composerName + ".json")
-	if err != nil {
-		fmt.Println(err)
+	client := &http.Client{Timeout: externalRequestTimeout}
+	return getPortraitURLWithClient(client, Config().OpenOpusURL, composerName)
+}
 
-		return Comp{
-			CompleteName: composerName,
-			SafeName:     sanitize.Name(Unidecode(composerName)),
-			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
-			Epoch:        "Unknown",
-		}
+func getPortraitURLWithClient(client *http.Client, baseURL string, composerName string) Comp {
+	fallback := Comp{
+		CompleteName: composerName,
+		SafeName:     sanitize.Name(Unidecode(composerName)),
+		Portrait:     unknownPortraitURL,
+		Epoch:        "Unknown",
+	}
+	if client == nil {
+		return fallback
+	}
+
+	endpoint := strings.TrimRight(baseURL, "/") + "/composer/list/search/" + url.PathEscape(composerName) + ".json"
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		fmt.Printf("Open Opus lookup failed: %v\n", err)
+		return fallback
 	}
 
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-	}
-	response := &Response{
-		Composers: &[]Comp{},
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Open Opus lookup returned %s\n", resp.Status)
+		return fallback
 	}
 
-	err_new := json.Unmarshal([]byte(string(body)), response)
-	fmt.Println(err_new)
-	composers := *response.Composers
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maximumOpenOpusBodySize+1))
+	if err != nil {
+		fmt.Printf("Open Opus response read failed: %v\n", err)
+		return fallback
+	}
+	if len(body) > maximumOpenOpusBodySize {
+		fmt.Println("Open Opus response exceeded the maximum accepted size")
+		return fallback
+	}
+	response := Response{
+		Composers: []Comp{},
+	}
+
+	if err = json.Unmarshal(body, &response); err != nil {
+		fmt.Printf("Open Opus response was invalid: %v\n", err)
+		return fallback
+	}
+	composers := response.Composers
 
 	// Check if the given name and the name from the API are alike
 	if len(composers) == 0 || (!strings.EqualFold(composerName, composers[0].Name) && !strings.EqualFold(composerName, composers[0].CompleteName)) {
-		return Comp{
-			CompleteName: composerName,
-			SafeName:     sanitize.Name(Unidecode(composerName)),
-			Portrait:     "https://icon-library.com/images/unknown-person-icon/unknown-person-icon-4.jpg",
-			Epoch:        "Unknown",
-		}
+		return fallback
 	}
 
 	return composers[0]

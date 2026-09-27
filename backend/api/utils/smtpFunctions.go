@@ -1,16 +1,18 @@
 package utils
 
 import (
-	"crypto/tls"
 	"fmt"
+	"time"
 
 	"github.com/SheetAble/SheetAble/backend/api/config"
 	gomail "gopkg.in/mail.v2"
 )
 
-func SendPasswordResetEmail(resetPasswordId string, emailAdress string) {
+const smtpConnectionTimeout = 10 * time.Second
+
+func SendPasswordResetEmail(resetPasswordId string, emailAdress string) error {
 	if config.Config().Smtp.Enabled == "0" {
-		return
+		return fmt.Errorf("SMTP is disabled")
 	}
 	m := gomail.NewMessage()
 
@@ -32,18 +34,14 @@ func SendPasswordResetEmail(resetPasswordId string, emailAdress string) {
 		config.Config().Smtp.Username,
 		config.Config().Smtp.Password,
 	)
-
-	// This is only needed when SSL/TLS certificate is not valid on server.
-	// In production this should be set to false.
-	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	d.Timeout = smtpConnectionTimeout
 
 	// Now send E-Mail
 	if err := d.DialAndSend(m); err != nil {
-		fmt.Println(err)
-		panic(err)
+		return fmt.Errorf("send password reset email: %w", err)
 	}
 
 	fmt.Println("Sent password reset request email to: " + emailAdress)
 
-	return
+	return nil
 }

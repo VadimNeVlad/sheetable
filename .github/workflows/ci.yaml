@@ -1,0 +1,105 @@
+name: Container CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-checks:
+    runs-on: ubuntu-24.04
+    env:
+      DB_PASSWORD: ci-only-db-password
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: ci-only-admin-password
+      API_SECRET: ci-only-api-secret-for-disposable-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      
+      - name: Test application
+        run: docker build --target test .
+
+      - name: Test PDF service
+        run: docker build --target test ./pdf2png
+
+      - name: Build application image
+        run: docker build --target runtime --tag sheetable-app:local .
+
+      - name: Build PDF service image
+        run: docker build --target runtime --tag sheetable-pdf2png:local ./pdf2png
+
+      - name: Scan application image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sheetable-app:local
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Scan PDF service image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sheetable-pdf2png:local
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Check known PDF native advisories
+        run: |
+          docker run --rm --interactive --read-only --network none \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - < scripts/check-native-advisories.py
+
+      - name: Start Compose stack
+        run: docker compose up --no-build --wait --wait-timeout 60
+
+      - name: Check application readiness
+        run: >-
+          curl --fail --show-error --silent
+          --retry 10 --retry-connrefused --retry-delay 3
+          --max-time 5
+          http://127.0.0.1:8080/health/ready
+
+      - name: Check PDF upload and thumbnail
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          token=$(
+            jq -n '{email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD}' |
+            curl --fail --silent --show-error --max-time 10 \
+              --header 'Content-Type: application/json' \
+              --data-binary @- \
+              http://127.0.0.1:8080/api/login |
+            jq -er 'select(type == "string" and length > 0)'
+          )
+
+          curl --fail --silent --show-error --max-time 45 \
+            --header "Authorization: Bearer $token" \
+            --form 'uploadFile=@output/pdf/sheetable-smoke-test.pdf;type=application/pdf' \
+            --form 'sheetName=ci-smoke' \
+            http://127.0.0.1:8080/api/upload
+
+          curl --fail --silent --show-error --max-time 10 \
+            --output /tmp/ci-thumbnail.png \
+            http://127.0.0.1:8080/api/sheet/thumbnail/ci-smoke
+
+          test "$(file --brief --mime-type /tmp/ci-thumbnail.png)" = "image/png"
+
+          docker run --rm --interactive --read-only --network none \
+            --mount type=bind,source=/tmp/ci-thumbnail.png,target=/thumbnail.png,readonly \
+            --entrypoint /opt/venv/bin/python sheetable-pdf2png:local \
+            - /thumbnail.png < scripts/check-thumbnail.py
+
+      - name: Show Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100
+
+      - name: Clean up Compose stack
+        if: always()
+        run: docker compose down --volumes

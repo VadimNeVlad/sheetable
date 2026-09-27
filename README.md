@@ -1,113 +1,354 @@
 <p align="center">
-<img src="https://img.shields.io/github/forks/SheetAble/SheetAble?color=bf616a&labelColor=3b4252&style=for-the-badge"> <img src="https://img.shields.io/github/stars/SheetAble/SheetAble?color=d08770&labelColor=3b4252&style=for-the-badge"> <img src="https://img.shields.io/github/issues-raw/SheetAble/SheetAble?color=a3be8c&labelColor=3b4252&style=for-the-badge"> <a href="./LICENSE"> <img src="https://img.shields.io/static/v1?label=license&message=AGPL&color=81a1c1&labelColor=3b4252&style=for-the-badge"> </a>
-<a href="https://discord.com/invite/QnFbxyPbRj"> <img src="https://img.shields.io/static/v1?label=discord&message=Join&color=5765F2&labelColor=3b4252&style=for-the-badge"> </a>
-</p>
-<br />
-<p align="center">
   <a href="https://github.com/SheetAble">
-    <img src="docs/LogoT.png" alt="Logo" width="110" height="110">
+    <img src="docs/LogoT.png" alt="SheetAble logo" width="110" height="110">
   </a>
-
-  <h3 align="center">SheetAble</h3>
-
-  <p align="center">
-    Self-hosted music sheet organizing software
-    <br />
-    <a href="https://sheetable.net" target="_blank"><strong>Explore the docs »</strong></a>
-    <br />
-    <br />
-    <a href="https://discord.com/invite/QnFbxyPbRj" target="_blank">Discord Server</a>
-    ·
-    <a href="https://github.com/SheetAble/SheetAble/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/SheetAble/SheetAble/issues">Request Feature</a>
-  </p>
 </p>
 
-<!-- TABLE OF CONTENTS -->
-<details open="open">
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-		<a href="#getting-started">Getting Started</a>
-    </li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgements">Acknowledgements</a></li>
-    <li><a href="#supporters">Supporters</a></li>
-  </ol>
-</details>
+<h1 align="center">SheetAble</h1>
 
-<!-- ABOUT THE PROJECT -->
+<p align="center">
+  Self-hosted software for uploading, organizing, and sharing music sheets.
+</p>
 
-## About The Project
+<p align="center">
+  <a href="https://github.com/SheetAble/SheetAble"><img src="https://img.shields.io/github/stars/SheetAble/SheetAble?color=d08770&labelColor=3b4252&style=for-the-badge" alt="GitHub stars"></a>
+  <a href="https://github.com/SheetAble/SheetAble/issues"><img src="https://img.shields.io/github/issues-raw/SheetAble/SheetAble?color=a3be8c&labelColor=3b4252&style=for-the-badge" alt="Open issues"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/static/v1?label=license&message=AGPL-3.0&color=81a1c1&labelColor=3b4252&style=for-the-badge" alt="AGPL-3.0 license"></a>
+</p>
 
-<img src="docs/SheetAbleShowcase.gif" alt="Example Gif" style="border-radius: 5px;">
+> [!IMPORTANT]
+> The local Compose stack has been exercised in WSL: startup, administrator login, PDF upload, and persistence after container recreation. Development workflow and production operations are still in progress. The current configuration is for local integration, not public production deployment. Follow the [containerization roadmap](docs/containerization-roadmap.md) for evidence and remaining checks.
 
-**SheetAble** is an easy-to-use music sheet organizer for all the music enthusiasts out there. You can upload and organize your sheets for any kind of instrument you use!
-Create Accounts for your friends or family to invite them to your library to use it as well or potentially upload sheets themselves.
-Currently it is available for web and [iPad/Android Tablets](https://github.com/SheetAble/tablet-client). All repos are open-source with the `AGPL` license.
+## About the project
 
-You may also suggest changes by forking this repo and creating a [pull request](https://github.com/SheetAble/SheetAble/compare) or opening an [issue](https://github.com/SheetAble/SheetAble/issues). Thanks to all the people who want to help expanding this project!
+SheetAble is a web application for managing a personal or shared music-sheet library. Users can upload PDF sheets, organize them by composer and tags, search the library, generate thumbnails, and manage access for additional users.
 
-### Built With
+<p align="center">
+  <img src="docs/SheetAbleShowcase.gif" alt="SheetAble application demonstration">
+</p>
 
-The backend is written in [Golang](https://golang.org/) and the frontend with [React.js](https://reactjs.org/).
+The original project and community resources are available through the [SheetAble organization](https://github.com/SheetAble) and the [upstream documentation site](https://sheetable.net/).
 
-<!-- GETTING STARTED -->
+## Current architecture
 
-## Getting Started
+The repository contains four runtime concerns:
 
-### Production Version
+```text
+Browser
+   |
+   v
+Go HTTP server :8080
+   |-- REST API under /api
+   |-- compiled React frontend embedded with go.rice
+   |-- SQLite by default; PostgreSQL and MySQL are supported
+   |-- user PDFs, thumbnails, and portraits below CONFIG_PATH
+   `-- HTTP request to the PDF-to-PNG service
 
-To install the **production** version of SheetAble please refer to this [Docs page](https://sheetable.net/docs/Installation/installation).
+Python/Flask + Poppler
+   `-- converts the first page of an uploaded PDF into a thumbnail
+```
 
-### Development Version
+### Technology stack
 
-To develop on SheetAble we also made a [Documentation guide](https://sheetable.net/docs/development).
+| Area | Technology | Current responsibility |
+|---|---|---|
+| Frontend | React | Browser UI and API client |
+| Backend | Go, Gin, GORM | API, authentication, persistence, and static frontend delivery |
+| PDF processing | Python, Flask, pdf2image, Poppler | PDF thumbnail generation |
+| Database | SQLite, PostgreSQL, or MySQL | Users, sheets, composers, and related metadata |
+| Build and delivery | Docker, BuildKit, Docker Compose, GitHub Actions | Under active modernization |
 
-<!-- ROADMAP -->
+## Repository layout
 
-## Roadmap
+```text
+.
+|-- backend/       Go server, API, and models
+|-- frontend/      React application
+|-- pdf2png/       Python PDF conversion service
+|-- docs/          Images and project/operations documentation
+|-- Dockerfile     Multi-stage Go/React application build
+|-- compose.yaml   Local three-service integration stack
+|-- .env.example   Local configuration template; actual .env stays untracked
+|-- .github/       Existing CI workflows and repository configuration
+|-- AGENTS.md      Working context and engineering rules for Codex sessions
+`-- README.md      Project entry point
+```
 
-See the [open issues](https://github.com/SheetAble/SheetAble/issues) for a list of proposed features (and known issues).
+## Containerization program
 
-<!-- CONTRIBUTING -->
+The target runtime consists of:
+
+- one production `app` image containing the Go server and the React production bundle;
+- one internal `pdf2png` service image;
+- the official PostgreSQL image;
+- internal container networking;
+- explicit persistent storage for PostgreSQL and application files;
+- separate development and production Compose configurations;
+- non-root, least-privilege runtime settings;
+- tested health, shutdown, backup, restore, upgrade, and rollback behavior;
+- CI-produced `linux/amd64` images with vulnerability scanning and available SBOM/provenance; additional architectures require a deployment need.
+
+The work is deliberately incremental. Application modernization, container construction, Compose integration, CI publication, and production hardening are separate milestones so that failures remain attributable and changes remain reviewable.
+
+See [SheetAble: containerization and operational readiness roadmap](docs/containerization-roadmap.md) for milestones, acceptance criteria, risks, and the decision log.
+
+## Getting started
+
+### Local Compose stack
+
+Requirements: Docker Engine with BuildKit and Docker Compose v2, running Linux
+containers. The exercised environment is WSL. Run the commands below from the
+repository root; host Node, Go, Python, and Poppler installations are not needed
+for this container workflow.
+
+For a new local checkout, copy the configuration template:
+
+```bash
+cp .env.example .env
+```
+
+Replace every `your-...` placeholder in `.env` with local values:
+
+| Variable | Purpose |
+|---|---|
+| `DB_PASSWORD` | Password shared by PostgreSQL initialization and the app connection |
+| `ADMIN_EMAIL` | Valid email address for the initial administrator |
+| `ADMIN_PASSWORD` | Initial administrator password; use at least 12 characters |
+| `API_SECRET` | Random token-signing secret; use at least 32 characters |
+
+Existing users should keep their current `.env`. It is ignored by Git. Keep
+actual credentials out of the committed template and image builds.
+
+The same root `.env` also contains host-side Go development settings. Compose
+only passes the variables declared in each service's `environment`; its app
+service explicitly uses `DB_HOST=db`, the internal PDF URL, and the container
+data path. Host-side localhost settings are not automatically injected into
+the container.
+
+Validate configuration without printing substituted secrets, then build and
+start the stack:
+
+```bash
+docker compose config --quiet
+docker compose up --build --detach
+```
+
+Open [http://localhost:8080](http://localhost:8080) and sign in with the
+administrator configured in `.env`. Upload a PDF to exercise app-to-pdf2png
+communication and thumbnail generation.
+
+| Service | Role | Host access |
+|---|---|---|
+| `app` | Go API and embedded React bundle | `127.0.0.1:8080` |
+| `db` | Official PostgreSQL 17 image | No published host port |
+| `pdf2png` | Gunicorn, Flask, and Poppler | No published host port |
+
+App startup waits for database and PDF-service healthchecks. The app has HTTP
+liveness at `/health/live` and database-aware readiness at `/health/ready`;
+the current app image does not yet have a Docker healthcheck. The database and
+PDF service share an internal `backend` network. App also joins `egress` for
+external API calls. App and PDF containers run as UID/GID 10001 with read-only
+root filesystems and a writable, size-limited `/tmp` tmpfs.
+
+The app runtime uses digest-pinned Debian 13 Distroless: it contains the Go
+binary, libc and required runtime data, without a shell or package manager.
+Use HTTP health endpoints and `docker compose logs app` for routine diagnostics;
+`docker compose exec app sh` is unavailable. The PDF service uses official
+Python 3.14.7 on Alpine 3.24 with Poppler and DejaVu fallback fonts. Its Python
+dependencies retain their existing hash lock.
+
+The commands and functional results above were reported by the learner in
+the current working checkout. A clean-checkout run has not yet been recorded;
+remaining milestone checks are tracked in the roadmap.
+
+### Data and container lifecycle
+
+`postgres-data` stores database state; `application-data` stores uploaded PDFs,
+thumbnails, and portraits under `/var/lib/sheetable`. Compose prefixes volume
+names with the project name. Keep the same project name when reusing data.
+These volumes provide persistence, not backups.
+
+To apply Compose changes without rebuilding unchanged images:
+
+```bash
+docker compose up --detach
+```
+
+To replace containers while retaining their named volumes:
+
+```bash
+docker compose up --detach --force-recreate
+```
+
+The learner exercised recreation and confirmed that the saved upload remained
+visible. After applying internal networks and runtime restrictions, another
+PDF upload succeeded.
+
+To stop and remove the stack's containers and networks while retaining named
+volumes:
+
+```bash
+docker compose down
+```
+
+**Destructive reset:** `docker compose down --volumes` also removes the stack's
+named volumes, including PostgreSQL data and uploaded files. Use it only when
+you deliberately want to discard that local data. This reset is not required
+for ordinary updates.
+
+PostgreSQL initialization variables apply to an empty database data directory.
+The app creates an administrator only when its users table is empty. Changing
+passwords in `.env` does not rotate existing database or administrator
+credentials.
+
+### Troubleshooting
+
+Inspect status and the last service logs when startup or a request fails:
+
+```bash
+docker compose ps
+docker compose logs --tail 50 app db pdf2png
+```
+
+If a required variable is missing, fill it in `.env`. If port 8080 is occupied,
+stop the process using it or change the published app port and `SERVER_URL`
+together. For image-build failures, inspect the failed build step before
+changing dependencies or discarding cache.
+
+### Development workflow
+
+M6 introduces a hybrid workflow: PostgreSQL and pdf2png run in Compose, while
+Go and React run on the host or in the IDE. `compose.dev.yaml` exposes
+dependency ports on localhost and uses the separate `dev-postgres-data` volume.
+The learner reported healthy development dependency containers and successful
+host Go startup with a readiness check through curl. The learner also reported
+successful React startup and a PDF upload with thumbnail generation through
+the development UI.
+
+After stopping the integration stack with `docker compose down`, start the
+development dependencies from the repository root:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --detach --wait db pdf2png
+```
+
+Keep one `.env` at the repository root; no `backend/.env` copy is needed. Add
+the non-secret host settings from `.env.example` to an existing `.env`, keeping
+the current credentials. Host Go uses `127.0.0.1:5432` for PostgreSQL,
+`http://127.0.0.1:5000/createthumbnail` for PDF conversion, `DEV=true` for CORS,
+and `CONFIG_PATH=../.data/dev` for files paired with the development database.
+`SERVER_URL=http://localhost:3000` is the React dev-server URL.
+
+With Go 1.26 or newer (verified on 1.27.1) and a C compiler installed in WSL,
+run the host backend:
+
+```bash
+cd backend
+ENV_FILE=../.env go run .
+```
+
+`ENV_FILE` selects the dotenv file. An explicitly selected missing or invalid
+file stops startup rather than silently using defaults. Paths are relative
+to the process working directory, including `CONFIG_PATH`. Process environment
+variables override dotenv values; supported `_FILE` secrets override both.
+Without `ENV_FILE`, the existing optional `.env` in the working directory
+remains the default. The loader is covered by Go tests; host startup and readiness
+were reported successful by the learner.
+
+In a second WSL terminal, start React from the repository root with Node 24.x
+and npm 11.x:
+
+```bash
+cd frontend
+npm ci
+npm start
+```
+
+`npm ci` installs the locked dependencies on initial setup or after dependency
+changes. Open http://localhost:3000; React sends API requests to the host Go
+server on port 8080. The learner reported successful login and a PDF upload
+with thumbnail generation in this workflow.
+
+### Pull-request CI
+
+`.github/workflows/ci.yaml` runs both Dockerfile test targets, builds and scans the
+runtime images, starts the integration Compose stack, and checks readiness, administrator
+login, PDF upload, and PNG thumbnail retrieval. It uses disposable test settings,
+prints service logs on failure, and removes the CI stack and its volumes afterward.
+It does not publish images. The workflow passed YAML parsing and source review;
+the learner supplied a screenshot of successful GitHub run `Container CI #1`
+for pull request #1 on branch `docker-v` (4m 22s), before security gates were added.
+Both current images pass the local Trivy HIGH/CRITICAL scans without Trivy ignore
+files. A temporary native-advisory gate covers three upstream CVEs omitted from
+Alpine's database, with a narrowly reviewed non-applicability assessment for
+the current PDF-to-PPM-to-PNG path, expiring 2026-10-27. The affected libraries
+are still unpatched; changes to the reviewed source or dependencies require
+reassessment. The updated GitHub
+workflows require a rerun; scan success alone does not confirm release readiness.
+See the [security remediation record](docs/security-remediation-2026-09-27.md)
+for locally verified fixes and remaining release blockers.
+
+CI runs on pull requests. Manual execution is also configured and becomes
+available through GitHub Actions when the workflow is on the default branch.
+
+### Container image releases
+
+`.github/workflows/release-images.yaml` is triggered by pushed version tags such
+as `v0.1.0`. It runs the test targets, builds linux/amd64 images, exercises the
+Compose upload/thumbnail flow, and blocks publication on HIGH or CRITICAL Trivy
+findings, including findings without an available fix. It then pushes the same
+tested images to GHCR with version and full commit-SHA tags and records their
+digests in the GitHub run summary. Registry build caches use separate mutable
+`buildcache` tags. Provenance/SBOM delivery remains roadmap work.
+
+Merge the reviewed workflow and application changes to main and wait for PR CI
+before preparing a new, unused release tag. From a clean checkout:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag -a v0.1.0 -m "Container release 0.1.0"
+git push origin v0.1.0
+```
+
+Use a new version for subsequent releases; do not move or reuse released tags.
+Keep numbered images available for rollback. The publication is sequential,
+so treat the release as complete only when the entire workflow succeeds.
+The release workflow has passed YAML parsing and Bash syntax review, but its
+first GitHub execution and published-image pull/run remain pending.
+
+### Upstream references
+
+Historical upstream instructions remain available for reference:
+
+- [Installation](https://sheetable.net/docs/Installation/installation/)
+- [Development and contributions](https://sheetable.net/docs/development/)
+
+These external instructions describe the upstream release and may not match the toolchain or containerization work in this repository.
+
+## Configuration and security notice
+
+The application currently includes development-oriented defaults such as the administrator password and JWT secret. Do not expose an unreviewed instance to an untrusted network and do not reuse those defaults in production.
+
+Real secrets must not be committed to Git, added to Docker build arguments, or copied into image layers. The app already rejects unsafe production configuration and supports file-backed secrets. The current Compose file uses local `.env` interpolation with `APP_ENV=development`; production secret delivery, restricted database privileges, TLS, backups, and release procedures remain roadmap work.
 
 ## Contributing
 
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+Before making infrastructure or container changes:
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a [Pull Request](https://github.com/SheetAble/SheetAble/compare)
+1. Read [AGENTS.md](AGENTS.md) for the repository working agreement.
+2. Read the [containerization roadmap](docs/containerization-roadmap.md).
+3. Keep changes small, reviewable, and limited to one coherent milestone or subtask.
+4. Include the build, test, or runtime evidence used to satisfy the relevant acceptance criteria.
+5. Update the roadmap status or decision log when a material milestone or architectural decision changes.
 
-<!-- LICENSE -->
+General upstream contribution guidance is available in [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests for the original project can be reported through the [upstream issue tracker](https://github.com/SheetAble/SheetAble/issues).
 
 ## License
 
-Distributed under the AGPL License. See `LICENSE` for more information.
-
-<!-- CONTACT -->
-
-## Contact
-
-Valentin Zwerschke - [@vallezw](https://github.com/vallezw)
-
-Organization Link: [github.com/SheetAble](https://github.com/SheetAble)
-
-<!-- ACKNOWLEDGEMENTS -->
+SheetAble is distributed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE) for the complete license text.
 
 ## Acknowledgements
 
-- [Open Opus API](https://openopus.org) - Free, open metadata for classical music
+- [SheetAble maintainers and contributors](https://github.com/SheetAble/SheetAble/graphs/contributors)
+- [Open Opus API](https://openopus.org/) for classical-music metadata

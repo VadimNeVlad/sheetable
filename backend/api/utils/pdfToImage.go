@@ -2,125 +2,115 @@ package utils
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
-	"net/http/httputil"
+	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
+	"time"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 )
 
-// POST request onto pdf creation
-func RequestToPdfToImage(path string, name string) bool {
-	sendRequest(path, name, "https://pdf2png.sheetable.net/createthumbnail")
+const pdfToPNGRequestTimeout = 30 * time.Second
 
-	return true
+// RequestToPdfToImage sends a PDF to the configured thumbnail service and
+// atomically stores the returned PNG in the application data directory.
+func RequestToPdfToImage(pdfPath string, name string) error {
+	config := Config()
+	client := &http.Client{Timeout: pdfToPNGRequestTimeout}
+
+	return requestToPDFToImage(client, config.PDF2PNGURL, config.ConfigPath, pdfPath, name)
 }
 
-func sendRequest(path string, name string, remoteURL string) {
-
-	var client *http.Client
-	{
-		// Setup a mocked http client.
-		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			b, err := httputil.DumpRequest(r, true)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Printf("%s", b)
-		}))
-
-		defer ts.Close()
-
-		client = ts.Client()
+func requestToPDFToImage(client *http.Client, remoteURL string, configPath string, pdfPath string, name string) error {
+	if client == nil {
+		return fmt.Errorf("pdf2png HTTP client is nil")
 	}
 
-	// Add InsecureSkipVerify because otherwise there would be an error
-	client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-
-	// Prepare the reader instances to encode
-	values := map[string]io.Reader{
-		"file": mustOpen(path), // lets assume its this file
-		"name": strings.NewReader(name),
+	parsedURL, err := url.ParseRequestURI(remoteURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return fmt.Errorf("invalid PDF2PNG_URL %q", remoteURL)
 	}
-	err := Upload(client, remoteURL, values, name)
+
+	pdf, err := os.Open(pdfPath)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("open PDF for thumbnail generation: %w", err)
 	}
-}
+	defer pdf.Close()
 
-func Upload(client *http.Client, url string, values map[string]io.Reader, name string) (err error) {
-	// Prepare a form that you will submit to that URL.
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-	for key, r := range values {
-		var fw io.Writer
-		if x, ok := r.(io.Closer); ok {
-			defer x.Close()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	filePart, err := writer.CreateFormFile("file", filepath.Base(pdfPath))
+	if err != nil {
+		return fmt.Errorf("create PDF multipart field: %w", err)
+	}
+	if _, err = io.Copy(filePart, pdf); err != nil {
+		return fmt.Errorf("copy PDF into multipart request: %w", err)
+	}
+	if err = writer.WriteField("name", name); err != nil {
+		return fmt.Errorf("create thumbnail name field: %w", err)
+	}
+	if err = writer.Close(); err != nil {
+		return fmt.Errorf("close PDF multipart request: %w", err)
+	}
+
+	request, err := http.NewRequest(http.MethodPost, remoteURL, &body)
+	if err != nil {
+		return fmt.Errorf("create pdf2png request: %w", err)
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("request thumbnail from pdf2png: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf("pdf2png returned %s: %s", response.Status, strings.TrimSpace(string(message)))
+	}
+
+	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if err != nil || mediaType != "image/png" {
+		return fmt.Errorf("pdf2png returned unexpected content type %q", response.Header.Get("Content-Type"))
+	}
+
+	thumbnailDir := filepath.Join(configPath, "sheets", "thumbnails")
+	if err = os.MkdirAll(thumbnailDir, 0755); err != nil {
+		return fmt.Errorf("create thumbnail directory: %w", err)
+	}
+
+	temporaryFile, err := os.CreateTemp(thumbnailDir, ".thumbnail-*.png")
+	if err != nil {
+		return fmt.Errorf("create temporary thumbnail: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	published := false
+	defer func() {
+		_ = temporaryFile.Close()
+		if !published {
+			_ = os.Remove(temporaryPath)
 		}
-		// Add an image file
-		if x, ok := r.(*os.File); ok {
-			if fw, err = w.CreateFormFile(key, x.Name()); err != nil {
-				return
-			}
-		} else {
-			// Add other fields
-			if fw, err = w.CreateFormField(key); err != nil {
-				return
-			}
-		}
-		if _, err = io.Copy(fw, r); err != nil {
-			return err
-		}
+	}()
 
+	if _, err = io.Copy(temporaryFile, response.Body); err != nil {
+		return fmt.Errorf("save thumbnail response: %w", err)
 	}
-	/*
-		Don't forget to close the multipart writer.
-		If you don't close it, your request will be missing the terminating boundary.
-	*/
-	w.Close()
-
-	// Now that you have a form, you can submit it to your handler.
-	req, err := http.NewRequest("POST", url, &b)
-	if err != nil {
-		return
-	}
-	// Don't forget to set the content type, this will contain the boundary.
-	req.Header.Set("Content-Type", w.FormDataContentType())
-
-	// Submit the request
-	res, err := client.Do(req)
-	if err != nil {
-		return
+	if err = temporaryFile.Close(); err != nil {
+		return fmt.Errorf("close temporary thumbnail: %w", err)
 	}
 
-	// Check the response
-	if res.StatusCode != http.StatusOK {
-		err = fmt.Errorf("bad status: %s", res.Status)
+	thumbnailPath := filepath.Join(thumbnailDir, name+".png")
+	if err = os.Rename(temporaryPath, thumbnailPath); err != nil {
+		return fmt.Errorf("publish thumbnail: %w", err)
 	}
+	published = true
 
-	// Save response
-	defer res.Body.Close()
-	out, err := os.Create(path.Join(Config().ConfigPath, "sheets/thumbnails", name+".png"))
-	if err != nil {
-		return
-	}
-	defer out.Close()
-	io.Copy(out, res.Body)
-
-	return
-}
-
-func mustOpen(f string) *os.File {
-	r, err := os.Open(f)
-	if err != nil {
-		panic(err)
-	}
-	return r
+	return nil
 }

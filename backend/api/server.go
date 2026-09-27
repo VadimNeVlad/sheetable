@@ -1,7 +1,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	. "github.com/SheetAble/SheetAble/backend/api/config"
 	"github.com/SheetAble/SheetAble/backend/api/controllers"
@@ -12,26 +16,41 @@ var (
 	server = controllers.Server{}
 )
 
-func Run() {
+func Run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	server.Initialize()
-
-	seed.Load(server.DB, Config().AdminEmail, Config().AdminPassword)
-
-	port := 8080
-	if Config().Port != 0 {
-		port = Config().Port
-	}
-
-	server.Run(fmt.Sprintf("0.0.0.0:%d", port), Config().Dev)
+	return run(ctx, 0)
 }
 
-func RunWithPort(port int) {
-	// To run modules from cloud-backend-services controller
+func run(ctx context.Context, portOverride int) error {
+	config := Config()
+	if err := config.Validate(); err != nil {
+		return err
+	}
 
-	server.Initialize()
+	if err := server.Initialize(); err != nil {
+		return err
+	}
+	defer server.Close()
 
-	seed.Load(server.DB, Config().AdminEmail, Config().AdminPassword)
+	if err := seed.MigrateAndSeed(server.DB, config.AdminEmail, config.AdminPassword); err != nil {
+		return err
+	}
 
-	server.Run(fmt.Sprintf("0.0.0.0:%d", port), Config().Dev)
+	port := 8080
+	if portOverride != 0 {
+		port = portOverride
+	} else if config.Port != 0 {
+		port = config.Port
+	}
+
+	return server.Run(ctx, fmt.Sprintf("0.0.0.0:%d", port), config.Dev)
+}
+
+func RunWithPort(port int) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return run(ctx, port)
 }
