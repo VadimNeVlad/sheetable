@@ -51,7 +51,7 @@ class LoginPage extends Component {
     return (
       <div className="all-container-pos">
         <div class="wrapper">
-          <div class="title">Login</div>
+          <div class="title">Login To App</div>
           {!errors.error ? (
             <form onSubmit={this.handleSubmit}>
               <div class="field">
