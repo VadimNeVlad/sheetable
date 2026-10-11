@@ -18,6 +18,7 @@ services:
       start_period: 30s
   
   app:
+    image: ${APP_IMAGE:-sheetable-app:local}
     build:
       context: .
       target: runtime
@@ -48,6 +49,7 @@ services:
         condition: service_healthy
 
   pdf2png:
+    image: ${PDF2PNG_IMAGE:-sheetable-pdf2png:local}
     build:
       context: ./pdf2png
       target: runtime
