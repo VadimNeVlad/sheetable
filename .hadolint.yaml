@@ -1,0 +1,4 @@
+ignored:
+  # Debian removes superseded package versions from its mirrors, so pinned apt
+  # versions break rebuilds. Base images are pinned by digest instead.
+  - DL3008

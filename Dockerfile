@@ -1,88 +1,47 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS frontend-deps
-
-WORKDIR /src/frontend
-
-COPY frontend/package.json frontend/package-lock.json ./
-
-RUN --mount=type=cache,id=sheetable-npm,target=/root/.npm,sharing=locked \
-  npm ci
-
-FROM frontend-deps AS frontend-build
-
-COPY frontend/ ./
-
-RUN --mount=type=cache,id=sheetable-frontend-build,target=/src/frontend/node_modules/.cache,sharing=locked \
-  npm run build
-
-FROM golang:1.27.1-bookworm@sha256:69a7b9788769bec032d238959b61854e9ae87f57be9029ec04e9885fabf99195 AS go-deps
-
-WORKDIR /src/backend
-
-COPY backend/go.mod backend/go.sum ./
-
-RUN --mount=type=cache,id=sheetable-go-mod,target=/go/pkg/mod,sharing=locked \
-  go mod download && go mod verify
-
-FROM go-deps AS app-build-base
-
-COPY backend/ ./
-
-COPY --from=frontend-build /src/frontend/build /src/frontend/build
-
-RUN --mount=type=cache,id=sheetable-go-mod,target=/go/pkg/mod,sharing=locked \
-  --mount=type=cache,id=sheetable-go-build,target=/root/.cache/go-build,sharing=locked \
-  cd api/controllers && \
-  go run github.com/GeertJohan/go.rice/rice@v1.0.3 embed-go && \
-  test -s rice-box.go
-
-FROM app-build-base AS test
-
-RUN --mount=type=cache,id=sheetable-go-mod,target=/go/pkg/mod,sharing=locked \
-  --mount=type=cache,id=sheetable-go-build,target=/root/.cache/go-build,sharing=locked \
-  go test -count=1 ./... && \
-  go vet ./...
-
-FROM app-build-base AS app-build
-
-RUN --mount=type=cache,id=sheetable-go-mod,target=/go/pkg/mod,sharing=locked \
-  --mount=type=cache,id=sheetable-go-build,target=/root/.cache/go-build,sharing=locked \
-  install -d -m 0750 /out/data && \
-  CGO_ENABLED=1 go build \
-  -trimpath \
-  -ldflags="-s -w" \
-  -o /out/sheetable \
-  .
-
-FROM gcr.io/distroless/base-debian13:nonroot@sha256:0896741ba5bafd3ac87ea025a5f578952f2d238ddc3614cb368acc983a687aa2 AS runtime
-
+FROM node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS frontend-deps
 WORKDIR /app
 
-# Preserve the existing data-volume owner; the runtime has no shell or apt.
-COPY --from=app-build --chown=10001:10001 /out/data /var/lib/sheetable
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
-COPY --from=app-build --chown=0:0 --chmod=0555 \
-  /out/sheetable \
-  /app/sheetable
+FROM frontend-deps AS frontend-build
+COPY frontend/ .
+RUN npm run build
 
-ARG APP_VERSION=dev
-ARG VCS_REF=unknown
+FROM golang:1.27.2-trixie@sha256:e58d6f83b3416618d8bcac2b3dde1b7f7e3c4a77d25e88637f8bbae81536c48d AS backend-deps
+WORKDIR /app
 
-LABEL org.opencontainers.image.title="SheetAble" \
-  org.opencontainers.image.description="SheetAble Go API with embedded React frontend" \
-  org.opencontainers.image.source="https://github.com/VadimNeVlad/sheetable" \
-  org.opencontainers.image.version="${APP_VERSION}" \
-  org.opencontainers.image.revision="${VCS_REF}" \
-  org.opencontainers.image.licenses="AGPL-3.0-only"
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download && go mod verify
 
-ENV CONFIG_PATH=/var/lib/sheetable \
-  SERVER_PORT=8080
+FROM backend-deps AS backend-build
+
+COPY backend/ .
+COPY --from=frontend-build /app/build /frontend/build
+
+WORKDIR /app/api/controllers
+RUN go run github.com/GeertJohan/go.rice/rice@v1.0.3 embed-go
+
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=1 go build -o /sheetable
+
+RUN install -d -m 0750 /data
+
+FROM backend-build AS test
+RUN --mount=type=cache,target=/root/.cache/go-build go test ./... && go vet ./...
+
+FROM gcr.io/distroless/base-debian13:nonroot@sha256:a0d70d6a97cd697d9362bc2aae4a6560dd65817e365d0043b07325a97975dc91 AS runtime
+WORKDIR /app
+
+COPY --from=backend-build /sheetable /sheetable
+COPY --from=backend-build --chown=nonroot:nonroot /data /var/lib/sheetable
+ENV CONFIG_PATH=/var/lib/sheetable
 
 EXPOSE 8080
 
-USER 10001:10001
+# non root user in distroless
+USER 65532:65532 
 
-STOPSIGNAL SIGTERM
-
-ENTRYPOINT ["/app/sheetable"]
+ENTRYPOINT ["/sheetable"]
