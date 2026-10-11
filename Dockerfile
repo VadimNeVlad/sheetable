@@ -21,7 +21,10 @@ FROM backend-deps AS backend-build
 COPY backend/ .
 COPY --from=frontend-build /app/build /frontend/build
 
-RUN cd api/controllers && go run github.com/GeertJohan/go.rice/rice@v1.0.3 embed-go
+WORKDIR /app/api/controllers
+RUN go run github.com/GeertJohan/go.rice/rice@v1.0.3 embed-go
+
+WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=1 go build -o /sheetable
 
 RUN install -d -m 0750 /data
@@ -37,6 +40,8 @@ COPY --from=backend-build --chown=nonroot:nonroot /data /var/lib/sheetable
 ENV CONFIG_PATH=/var/lib/sheetable
 
 EXPOSE 8080
-USER nonroot:nonroot
+
+# non root user in distroless
+USER 65532:65532 
 
 ENTRYPOINT ["/sheetable"]
